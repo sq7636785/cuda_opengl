@@ -88,7 +88,7 @@ std::istream& utilityCore::safeGetline(std::istream &is, std::string &t) {
             return is;
         case '\r':
             if (sb->sgetc() == '\n') {
-                sb->sbumpc;
+                sb->sbumpc();
             }
             return is;
         case EOF:

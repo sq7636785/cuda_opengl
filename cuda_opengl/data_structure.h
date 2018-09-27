@@ -1,5 +1,5 @@
-#ifndef DATA_STRUCTURE
-#define DATA_STAUCTURE
+#ifndef DATA_STRUCTURE_H
+#define DATA_STAUCTURE_H
 
 #include <string>
 #include <vector>
@@ -51,12 +51,21 @@ struct Camera {
 };
 
 
+//record the render state every iteration
 struct RenderState {
     Camera       camera;
     unsigned int iterations;
     int          traceDepth;
     std::vector<glm::vec3> image;
     std::string  imageName;
+};
+
+//thread part
+struct PathSegment {
+    Ray         ray;
+    glm::vec3   color;
+    int         pixelIndex;
+    int         remainingBounces;
 };
 
 struct ShadeableIntersection {

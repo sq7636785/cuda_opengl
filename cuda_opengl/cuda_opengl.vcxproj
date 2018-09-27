@@ -19,10 +19,20 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="cutil_math.h" />
+    <ClInclude Include="..\src\cutil_math.h" />
+    <ClInclude Include="..\src\path_tracer.h" />
+    <ClInclude Include="data_structure.h" />
+    <ClInclude Include="intersections.h" />
+    <ClInclude Include="preview.h" />
+    <ClInclude Include="utilities.h" />
   </ItemGroup>
   <ItemGroup>
-    <CudaCompile Include="smallptCUDA.cu" />
+    <ClCompile Include="..\src\main.cpp" />
+    <ClCompile Include="preview.cpp" />
+    <ClCompile Include="utilities.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <CudaCompile Include="..\src\smallptCUDA_my.cu" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{3881103F-43A9-4880-B3F7-994DFBE6C259}</ProjectGuid>
@@ -77,6 +87,8 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <LinkIncremental>true</LinkIncremental>
+    <IncludePath>../external\include;$(IncludePath)</IncludePath>
+    <LibraryPath>../extern/win/glfw3.lib;../extern/win/glew32s.lib;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>

@@ -1,3 +1,47 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
-<Project ToolsVersion="12.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Sources">
+      <UniqueIdentifier>{9fc47abc-3f4a-4a8e-a0b9-69e694d4a02d}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header">
+      <UniqueIdentifier>{2780890c-cf7a-4c8d-a15b-f2815d03d875}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\src\cutil_math.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\path_tracer.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="data_structure.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="utilities.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="preview.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="intersections.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\src\main.cpp">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="utilities.cpp">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="preview.cpp">
+      <Filter>Sources</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <CudaCompile Include="..\src\smallptCUDA_my.cu">
+      <Filter>Sources</Filter>
+    </CudaCompile>
+  </ItemGroup>
 </Project>

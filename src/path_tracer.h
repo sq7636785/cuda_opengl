@@ -1,8 +1,10 @@
-#ifndef PATH_TRACER
-#define PATH_TRACER
+#ifndef PATH_TRACER_H
+#define PATH_TRACER_H
 
 namespace pt {
-    class 
+    class PathTracer {
+
+    };
 }
 
 
