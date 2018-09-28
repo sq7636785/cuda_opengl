@@ -22,12 +22,14 @@
     <ClInclude Include="..\src\cutil_math.h" />
     <ClInclude Include="..\src\path_tracer.h" />
     <ClInclude Include="data_structure.h" />
+    <ClInclude Include="image.h" />
     <ClInclude Include="intersections.h" />
     <ClInclude Include="preview.h" />
     <ClInclude Include="utilities.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\src\main.cpp" />
+    <ClCompile Include="image.cpp" />
     <ClCompile Include="preview.cpp" />
     <ClCompile Include="utilities.cpp" />
   </ItemGroup>

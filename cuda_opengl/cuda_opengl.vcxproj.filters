@@ -27,6 +27,9 @@
     <ClInclude Include="intersections.h">
       <Filter>Header</Filter>
     </ClInclude>
+    <ClInclude Include="image.h">
+      <Filter>Header</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\src\main.cpp">
@@ -36,6 +39,9 @@
       <Filter>Sources</Filter>
     </ClCompile>
     <ClCompile Include="preview.cpp">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="image.cpp">
       <Filter>Sources</Filter>
     </ClCompile>
   </ItemGroup>
