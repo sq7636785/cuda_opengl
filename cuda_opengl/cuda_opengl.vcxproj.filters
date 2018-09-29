@@ -12,42 +12,43 @@
     <ClInclude Include="..\src\cutil_math.h">
       <Filter>Header</Filter>
     </ClInclude>
+    <ClInclude Include="..\src\data_structure.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\image.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\intersections.h">
+      <Filter>Header</Filter>
+    </ClInclude>
     <ClInclude Include="..\src\path_tracer.h">
       <Filter>Header</Filter>
     </ClInclude>
-    <ClInclude Include="data_structure.h">
+    <ClInclude Include="..\src\preview.h">
       <Filter>Header</Filter>
     </ClInclude>
-    <ClInclude Include="utilities.h">
+    <ClInclude Include="..\src\scene.h">
       <Filter>Header</Filter>
     </ClInclude>
-    <ClInclude Include="preview.h">
-      <Filter>Header</Filter>
-    </ClInclude>
-    <ClInclude Include="intersections.h">
-      <Filter>Header</Filter>
-    </ClInclude>
-    <ClInclude Include="image.h">
+    <ClInclude Include="..\src\utilities.h">
       <Filter>Header</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="..\src\image.cpp">
+      <Filter>Sources</Filter>
+    </ClCompile>
     <ClCompile Include="..\src\main.cpp">
       <Filter>Sources</Filter>
     </ClCompile>
-    <ClCompile Include="utilities.cpp">
+    <ClCompile Include="..\src\preview.cpp">
       <Filter>Sources</Filter>
     </ClCompile>
-    <ClCompile Include="preview.cpp">
+    <ClCompile Include="..\src\scene.cpp">
       <Filter>Sources</Filter>
     </ClCompile>
-    <ClCompile Include="image.cpp">
+    <ClCompile Include="..\src\utilities.cpp">
       <Filter>Sources</Filter>
     </ClCompile>
-  </ItemGroup>
-  <ItemGroup>
-    <CudaCompile Include="..\src\smallptCUDA_my.cu">
-      <Filter>Sources</Filter>
-    </CudaCompile>
   </ItemGroup>
 </Project>

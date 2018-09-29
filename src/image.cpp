@@ -1,8 +1,9 @@
 #include <iostream>
 #include <string>
-#include <stb_image_write.h>
-
 #include "image.h"
+
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#include <stb_image_write.h>
 
 image::image(int x, int y)
     :xSize(x), ySize(y),

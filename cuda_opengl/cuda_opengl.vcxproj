@@ -20,21 +20,20 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\src\cutil_math.h" />
+    <ClInclude Include="..\src\data_structure.h" />
+    <ClInclude Include="..\src\image.h" />
+    <ClInclude Include="..\src\intersections.h" />
     <ClInclude Include="..\src\path_tracer.h" />
-    <ClInclude Include="data_structure.h" />
-    <ClInclude Include="image.h" />
-    <ClInclude Include="intersections.h" />
-    <ClInclude Include="preview.h" />
-    <ClInclude Include="utilities.h" />
+    <ClInclude Include="..\src\preview.h" />
+    <ClInclude Include="..\src\scene.h" />
+    <ClInclude Include="..\src\utilities.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="..\src\image.cpp" />
     <ClCompile Include="..\src\main.cpp" />
-    <ClCompile Include="image.cpp" />
-    <ClCompile Include="preview.cpp" />
-    <ClCompile Include="utilities.cpp" />
-  </ItemGroup>
-  <ItemGroup>
-    <CudaCompile Include="..\src\smallptCUDA_my.cu" />
+    <ClCompile Include="..\src\preview.cpp" />
+    <ClCompile Include="..\src\scene.cpp" />
+    <ClCompile Include="..\src\utilities.cpp" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{3881103F-43A9-4880-B3F7-994DFBE6C259}</ProjectGuid>

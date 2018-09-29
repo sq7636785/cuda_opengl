@@ -17,25 +17,27 @@ struct Ray {
 };
 
 struct Geometry {
-    enum GeomType type;
-    glm::vec3 translation;
-    glm::vec3 rotation;
-    glm::vec3 scale;
-    glm::mat4 transform;
-    glm::mat4 inverseTransform;
-    glm::mat4 invTranspose;
+    enum GeomType   type;
+    int             materialID;
+    glm::vec3       translation;
+    glm::vec3       rotation;
+    glm::vec3       scale;
+    glm::mat4       transform;
+    glm::mat4       inverseTransform;
+    glm::mat4       invTranspose;
 };
 
 struct Material {
-    glm::vec3 color;
     struct {
         float       exponent;
         glm::vec3   color;
     }specular;
-    float hasReflective;
-    float hasRefractive;
-    float indexOfRefraction;
-    float emittance;
+
+    glm::vec3       color;
+    float           hasReflective;
+    float           hasRefractive;
+    float           indexOfRefraction;
+    float           emittance;
 };
 
 
@@ -53,11 +55,11 @@ struct Camera {
 
 //record the render state every iteration
 struct RenderState {
-    Camera       camera;
-    unsigned int iterations;
-    int          traceDepth;
-    std::vector<glm::vec3> image;
-    std::string  imageName;
+    Camera                  camera;
+    unsigned int            iterations;
+    int                     traceDepth;
+    std::vector<glm::vec3>  image;
+    std::string             imageName;
 };
 
 //thread part
