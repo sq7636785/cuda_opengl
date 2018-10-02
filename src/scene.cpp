@@ -206,7 +206,11 @@ int Scene::loadCamera() {
     float yInc = yScale * 2.0f / camera.resolution.y;
     camera.pixelLength = glm::vec2(xInc, yInc);
     
-
+    //在视点坐标系中， n(z), u(y), v(x)， n是视线方向的负方向， 因为这样才和opengl的定义一致， 以及之后的投影操作符合
+    //但可以利用视线方向来计算v和u，
+    //但在最后返回视点坐标系矩阵时候， 应该将视线方向取负作为视线坐标系中的n轴
+    //在平移上， 可以看下你总结的坐标变换， 就是求视点位置在视点坐标系下各个轴的投影。
+    
     camera.view = glm::normalize(camera.lookAt - camera.position);
     camera.right = glm::normalize(glm::cross(camera.view, camera.up));
     camera.up = glm::normalize(glm::cross(camera.right, camera.view));

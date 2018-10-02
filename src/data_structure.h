@@ -1,4 +1,4 @@
-#ifndef DATA_STRUCTURE_H
+#ifndef DATA_STAUCTURE_H
 #define DATA_STAUCTURE_H
 
 #include <string>

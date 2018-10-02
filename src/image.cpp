@@ -6,8 +6,8 @@
 #include <stb_image_write.h>
 
 image::image(int x, int y)
-    :xSize(x), ySize(y),
-     pixels(new glm::vec3[x * y]) {
+:xSize(x), ySize(y),
+pixels(new glm::vec3[x * y]) {
 }
 
 image::~image() {
