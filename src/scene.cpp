@@ -34,7 +34,7 @@ Scene::Scene(const std::string &fileName) {
 }
 
 
-int Scene::loadGeometry(const std::string &fileName) {
+int Scene::loadGeometry(std::string fileName) {
     int id = atoi(fileName.c_str());
     if (id != geometrys.size()) {
         std::cout << "ERROR: OBJECT ID does not match expected number of geoms" << std::endl;
@@ -91,7 +91,7 @@ int Scene::loadGeometry(const std::string &fileName) {
 
 
 
-int Scene::loadMaterial(const std::string &fileName) {
+int Scene::loadMaterial(std::string fileName) {
     int id = atoi(fileName.c_str());
     if (id != materials.size()) {
         std::cout << "ERROR: MATERIAL ID does not match expected number of materials" << std::endl;

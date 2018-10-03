@@ -64,7 +64,7 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <CudaCompile Include="..\src\pathtrace.cu">
+    <CudaCompile Include="..\src\pathtrace_my.cu">
       <Filter>Sources</Filter>
     </CudaCompile>
   </ItemGroup>

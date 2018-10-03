@@ -40,7 +40,7 @@
     <ClCompile Include="..\src\utilities.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <CudaCompile Include="..\src\pathtrace.cu" />
+    <CudaCompile Include="..\src\pathtrace_my.cu" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{3881103F-43A9-4880-B3F7-994DFBE6C259}</ProjectGuid>

@@ -36,7 +36,7 @@ glm::vec3 multiplyMV(glm::mat4 m, glm::vec4 v) {
 
 /**
 * Test intersection between a ray and a transformed cube. Untransformed,
-* the cube ranges from -0.5 to 0.5 in each axis and is centered at the origin.
+* the cube ranges from -0.5 to 0.5 in each axis and is centered at the position.
 *
 * @param intersectionPoint  Output parameter for point of intersection.
 * @param normal             Output parameter for surface normal.
@@ -50,58 +50,52 @@ glm::vec3 multiplyMV(glm::mat4 m, glm::vec4 v) {
 __host__ __device__
 float boxIntersectionTest(Geometry box, Ray r, glm::vec3 &intersectionPoint, glm::vec3 &normal, bool &outside) {
     
-    //transform ray to box coordinate.
     Ray q;
     q.position = multiplyMV(box.inverseTransform, glm::vec4(r.position, 1.0f));
-    q.diretion = multiplyMV(box.inverseTransform, glm::vec4(r.diretion, 1.0f));
-    q.diretion = glm::normalize(q.diretion);
-    
-    float tMin = -1e38f;
-    float tMax = 1e38f;
+    q.diretion = glm::normalize(multiplyMV(box.inverseTransform, glm::vec4(r.diretion, 0.0f)));
 
-    glm::vec3 tMin_n;
-    glm::vec3 tMax_n;
-
+    float tmin = -1e38f;
+    float tmax = 1e38f;
+    glm::vec3 tmin_n;
+    glm::vec3 tmax_n;
     for (int xyz = 0; xyz < 3; ++xyz) {
         float qdxyz = q.diretion[xyz];
-
-        float t1 = (-0.5f - q.position[xyz]) / qdxyz;
-        float t2 = (+0.5f - q.position[xyz]) / qdxyz;
-        float ta = glm::min(t1, t2);
-        float tb = glm::max(t1, t2);
-
-        glm::vec3 n;
-        n[xyz] = t2 < t1 ? +1 : -1;
-        if (ta > 0 && ta < tMin) {
-            tMin = ta;
-            tMin_n = n;
-        }
-        if (tb < tMax) {
-            tMax = tb;
-            tMax_n = n;
+        /*if (glm::abs(qdxyz) > 0.00001f)*/ {
+            float t1 = (-0.5f - q.position[xyz]) / qdxyz;
+            float t2 = (+0.5f - q.position[xyz]) / qdxyz;
+            float ta = glm::min(t1, t2);
+            float tb = glm::max(t1, t2);
+            glm::vec3 n;
+            n[xyz] = t2 < t1 ? +1 : -1;
+            if (ta > 0 && ta > tmin) {
+                tmin = ta;
+                tmin_n = n;
+            }
+            if (tb < tmax) {
+                tmax = tb;
+                tmax_n = n;
+            }
         }
     }
 
-    if (tMax >= tMin && tMin > 0) {
+    if (tmax >= tmin && tmax > 0) {
         outside = true;
-        if (tMin <= 0) {
-            tMin = tMax;
-            tMin_n = tMax_n;
+        if (tmin <= 0) {
+            tmin = tmax;
+            tmin_n = tmax_n;
             outside = false;
         }
-
-        intersectionPoint = multiplyMV(box.transform, glm::vec4(getPointOnRay(q, tMin), 1.0f));
-        normal = glm::normalize(multiplyMV(box.transform, glm::vec4(tMin_n, 0.0f)));
+        intersectionPoint = multiplyMV(box.transform, glm::vec4(getPointOnRay(q, tmin), 1.0f));
+        normal = glm::normalize(multiplyMV(box.transform, glm::vec4(tmin_n, 0.0f)));
         return glm::length(r.position - intersectionPoint);
     }
-
     return -1;
 }
 
 // CHECKITOUT
 /**
 * Test intersection between a ray and a transformed sphere. Untransformed,
-* the sphere always has radius 0.5 and is centered at the origin.
+* the sphere always has radius 0.5 and is centered at the position.
 *
 * @param intersectionPoint  Output parameter for point of intersection.
 * @param normal             Output parameter for surface normal.
@@ -110,32 +104,31 @@ float boxIntersectionTest(Geometry box, Ray r, glm::vec3 &intersectionPoint, glm
 */
 
 __host__ __device__
-float sphereIntersectionTest(Geometry sphere, Ray r, glm::vec3 &intersectPoint, glm::vec3 &normal, bool &outside) {
-    float radius = 0.5f;
+float sphereIntersectionTest(Geometry sphere, Ray r, glm::vec3 &intersectionPoint, glm::vec3 &normal, bool &outside) {
+    float radius = .5;
 
     glm::vec3 ro = multiplyMV(sphere.inverseTransform, glm::vec4(r.position, 1.0f));
-    glm::vec3 rd = multiplyMV(sphere.inverseTransform, glm::vec4(r.diretion, 1.0f));
+    glm::vec3 rd = glm::normalize(multiplyMV(sphere.inverseTransform, glm::vec4(r.diretion, 0.0f)));
 
     Ray rt;
     rt.position = ro;
-    rt.diretion = glm::normalize(rd);
+    rt.diretion = rd;
 
-    float vDotD = glm::dot(rt.position, rt.diretion);
-    float radicand = vDotD * vDotD - (glm::dot(rt.position, rt.position) - powf(radius, 2));
-
+    float vDotdiretion = glm::dot(rt.position, rt.diretion);
+    float radicand = vDotdiretion * vDotdiretion - (glm::dot(rt.position, rt.position) - powf(radius, 2));
     if (radicand < 0) {
-        return -1.0f;
+        return -1;
     }
 
     float squareRoot = sqrt(radicand);
-    float firstTerm = -vDotD;
+    float firstTerm = -vDotdiretion;
     float t1 = firstTerm + squareRoot;
     float t2 = firstTerm - squareRoot;
 
-    float t = 0.0f;
-    if (t1 < 0.0f && t2 < 0.0f) {
-        return -1.0f;
-    } else if (t1 > 0.0f && t2 > 0.0f) {
+    float t = 0;
+    if (t1 < 0 && t2 < 0) {
+        return -1;
+    } else if (t1 > 0 && t2 > 0) {
         t = glm::min(t1, t2);
         outside = true;
     } else {
@@ -145,14 +138,13 @@ float sphereIntersectionTest(Geometry sphere, Ray r, glm::vec3 &intersectPoint, 
 
     glm::vec3 objspaceIntersection = getPointOnRay(rt, t);
 
-    intersectPoint = multiplyMV(sphere.transform, glm::vec4(objspaceIntersection, 1.0f));
-    normal = glm::normalize(multiplyMV(sphere.inverseTransform, glm::vec4(objspaceIntersection, 1.0f)));
-
+    intersectionPoint = multiplyMV(sphere.transform, glm::vec4(objspaceIntersection, 1.f));
+    normal = glm::normalize(multiplyMV(sphere.invTranspose, glm::vec4(objspaceIntersection, 0.f)));
     if (!outside) {
         normal = -normal;
     }
 
-    return glm::length(r.position - intersectPoint);
+    return glm::length(r.position - intersectionPoint);
 
 }
 

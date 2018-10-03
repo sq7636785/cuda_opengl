@@ -169,9 +169,9 @@ void computeIntersection(
         float t;
 
         for (int i = 0; i < geoms_size; ++i) {
-            if (geoms[i].type == SPHERE) {
+            if (geoms[i].type == GeomType::SPHERE) {
                 t = sphereIntersectionTest(geoms[i], unit.ray, intersectPoint, normal, outside);
-            } else if (geoms[i].type == CUBE) {
+            } else if (geoms[i].type == GeomType::CUBE) {
                 t = boxIntersectionTest(geoms[i], unit.ray, intersectPoint, normal, outside);
             }
             //TODO:  more geometry type
@@ -217,12 +217,16 @@ void shadeFakeMaterial(
         ShadeableIntersection &intersect = intersections[index];
         Material &m = materials[intersect.materialId];
         PathSegment &pathSegment = pathSegments[index];
-        if (intersect.t > 0) {
+        if (intersect.t > 0.0) {
+            thrust::default_random_engine rng = makeSeededRandomEngine(iter, index, 0);
+            thrust::uniform_real_distribution<float> u01(0, 1);
+
             if (m.emittance > 0) {
                 pathSegment.color *= (m.emittance * m.color);
             } else {
-                float ambert = glm::dot(intersect.surfaceNormal, glm::vec3(0.0f, 1.0f, 0.0f));
-                pathSegment.color *= ambert * m.color;
+                float lightTerm = glm::dot(intersect.surfaceNormal, glm::vec3(0.0f, 1.0f, 0.0f));
+                pathSegments[index].color *= (m.color * lightTerm) * 0.3f + ((1.0f - intersect.t * 0.02f) * m.color) * 0.7f;
+                pathSegments[index].color *= u01(rng); // apply some noise because why not
             }
         } else {
             pathSegment.color = glm::vec3(0.0f);
@@ -265,7 +269,7 @@ void pathTrace(uchar4* pbo, int frame, int iter) {
 
     int depth = 0;
     PathSegment *dev_path_end = dev_paths + pixelNum;
-    int num_paths = dev_path_end - dev_paths;
+    int num_paths = pixelNum;
 
 
     // --- PathSegment Tracing Stage ---

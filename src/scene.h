@@ -14,8 +14,8 @@ class Scene {
   private:
       std::ifstream fp_in;
 
-      int loadMaterial(const std::string &fileName);
-      int loadGeometry(const std::string &fileName);
+      int loadMaterial(std::string fileName);
+      int loadGeometry(std::string fileName);
       int loadCamera();
 
   public:
