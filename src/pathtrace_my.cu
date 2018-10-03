@@ -60,9 +60,10 @@ void sendImageToPBO(uchar4* pbo, glm::ivec2 resolution, int iter, glm::vec3* ima
         glm::vec3 pix = image[index];
 
         glm::ivec3 color;
-        color.x = glm::clamp(static_cast<int>(pix.x / iter * 255.0), 0, 255);
-        color.y = glm::clamp(static_cast<int>(pix.y / iter * 255.0), 0, 255);
-        color.z = glm::clamp(static_cast<int>(pix.z / iter * 255.0), 0, 255);
+        float total = static_cast<float>(iter);
+        color.x = glm::clamp(static_cast<int>(pix.x / total * 255.0), 0, 255);
+        color.y = glm::clamp(static_cast<int>(pix.y / total * 255.0), 0, 255);
+        color.z = glm::clamp(static_cast<int>(pix.z / total * 255.0), 0, 255);
 
         pbo[index].w = 0;
         pbo[index].x = color.x;
@@ -235,6 +236,44 @@ void shadeFakeMaterial(
 }
 
 
+__global__
+void shadeMaterial(int iter, int num_paths, ShadeableIntersection* intersections, PathSegment* pathSegments, Material* materials) {
+    int index = blockDim.x * blockIdx.x + threadIdx.x;
+    ShadeableIntersection &intersect = intersections[index];
+    Material &material = materials[intersect.materialId];
+    PathSegment &pathSegment = pathSegments[index];
+
+    if (index < num_paths) {
+        if (pathSegment.remainingBounces > 0) {
+            thrust::default_random_engine rng = makeSeededRandomEngine(iter, index, 0);
+            if (intersect.t > 0) {
+                //diffus
+
+                pathSegment.color = pathSegment.color * material.color;
+                pathSegment.ray.position = getPointOnRay(pathSegment.ray, intersect.t);
+                pathSegment.ray.diretion = calculateRandomDirectionInHemisphere(intersect.surfaceNormal, rng);
+
+
+                glm::vec3 light = glm::vec3(1.0f, 1.0f, 1.0f);
+
+                --pathSegment.remainingBounces;
+                if (material.emittance > 0) {
+                    light.x = light.y = light.z = material.emittance;
+                    pathSegment.remainingBounces = 0;
+                } else {
+                    if (pathSegment.remainingBounces == 0) {
+                        pathSegment.color = glm::vec3(0.0f);
+                    }
+                }
+            } else {
+                pathSegment.remainingBounces = 0;
+                pathSegment.color = glm::vec3(0.0f);
+            }
+        }
+    }
+}
+
+
 // Add the current iteration's output to the overall image
 __global__
 void finalGather(int nPaths, glm::vec3* image, PathSegment* iterationPaths) {
@@ -275,8 +314,8 @@ void pathTrace(uchar4* pbo, int frame, int iter) {
     // --- PathSegment Tracing Stage ---
     // Shoot ray into scene, bounce between objects, push shading chunks
 
-    bool iterationComplete = false;
-    while (!iterationComplete) {
+    int iterationComplete = 0;
+    while (iterationComplete < traceDepth) {
         cudaMemset(dev_intersection, 0, sizeof(ShadeableIntersection)* pixelNum);
 
         dim3 numBlockPathSegmentTracing = (num_paths + blockSize1d - 1) / blockSize1d;
@@ -302,14 +341,14 @@ void pathTrace(uchar4* pbo, int frame, int iter) {
         // materials you have in the scenefile.
         // TODO: compare between directly shading the path segments and shading
         // path segments that have been reshuffled to be contiguous in memory.
-        shadeFakeMaterial << <numBlockPathSegmentTracing, blockSize1d >> >(
+        shadeMaterial << <numBlockPathSegmentTracing, blockSize1d >> >(
             iter,
             num_paths,
             dev_intersection,
             dev_paths,
             dev_material);
 
-        iterationComplete = true;// TODO: should be based off stream compaction results.
+        iterationComplete++;// TODO: should be based off stream compaction results.
     }
 
     dim3 numBlockPixels = (pixelNum + blockSize1d - 1) / blockSize1d;
