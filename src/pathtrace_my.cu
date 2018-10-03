@@ -239,35 +239,55 @@ void shadeFakeMaterial(
 __global__
 void shadeMaterial(int iter, int num_paths, ShadeableIntersection* intersections, PathSegment* pathSegments, Material* materials) {
     int index = blockDim.x * blockIdx.x + threadIdx.x;
-    ShadeableIntersection &intersect = intersections[index];
-    Material &material = materials[intersect.materialId];
-    PathSegment &pathSegment = pathSegments[index];
 
     if (index < num_paths) {
+        ShadeableIntersection &intersect = intersections[index];
+        Material &material = materials[intersect.materialId];
+        PathSegment &pathSegment = pathSegments[index];
+
         if (pathSegment.remainingBounces > 0) {
-            thrust::default_random_engine rng = makeSeededRandomEngine(iter, index, 0);
             if (intersect.t > 0) {
+                thrust::default_random_engine rng = makeSeededRandomEngine(iter, index, 0);
+                glm::vec3 intersectPoint = getPointOnRay(pathSegment.ray, intersect.t);
+                scatterRay(pathSegment, intersectPoint, intersect.surfaceNormal, material, rng);
+
+               // float cosTheta = glm::abs(glm::dot(normal, pathSegment.ray.diretion));
+           //     if (material.emittance > 0) {
+           //         pathSegment.color *= (material.emittance * material.color);
+           //         pathSegment.remainingBounces = 0;
+           //     } else {
+                    
+           //         pathSegment.ray.diretion = calculateRandomDirectionInHemisphere(intersect.surfaceNormal, rng);
+           //         pathSegment.ray.position = intersectPoint + pathSegment.ray.diretion *0.001f;
+           //         pathSegment.color *= material.color;
+           //         pathSegment.remainingBounces--;
+           //     }
+
                 //diffus
 
-                pathSegment.color = pathSegment.color * material.color;
-                pathSegment.ray.position = getPointOnRay(pathSegment.ray, intersect.t);
-                pathSegment.ray.diretion = calculateRandomDirectionInHemisphere(intersect.surfaceNormal, rng);
+                //pathSegment.color = pathSegment.color * material.color * glm::abs(glm::dot(intersect.surfaceNormal, pathSegment.ray.diretion));
+                //pathSegment.ray.position = getPointOnRay(pathSegment.ray, intersect.t);
+                //pathSegment.ray.diretion = calculateRandomDirectionInHemisphere(intersect.surfaceNormal, rng);
 
 
-                glm::vec3 light = glm::vec3(1.0f, 1.0f, 1.0f);
+                //glm::vec3 light = glm::vec3(1.0f, 1.0f, 1.0f);
 
-                --pathSegment.remainingBounces;
-                if (material.emittance > 0) {
-                    light.x = light.y = light.z = material.emittance;
-                    pathSegment.remainingBounces = 0;
-                } else {
-                    if (pathSegment.remainingBounces == 0) {
-                        pathSegment.color = glm::vec3(0.0f);
-                    }
-                }
+                //--pathSegment.remainingBounces;
+                //if (material.emittance > 0) {
+                //    light.x = light.y = light.z = material.emittance;
+                //    pathSegment.color *= light;
+                //    pathSegment.remainingBounces = 0;
+                //} else {
+                //    if (pathSegment.remainingBounces == 0) {
+                //        pathSegment.color = glm::vec3(0.0f);
+                //    }
+                //}
+            //} else {
+            //    pathSegment.remainingBounces = 0;
+            //    pathSegment.color = glm::vec3(0.0f);
             } else {
-                pathSegment.remainingBounces = 0;
                 pathSegment.color = glm::vec3(0.0f);
+                pathSegment.remainingBounces = 0;
             }
         }
     }

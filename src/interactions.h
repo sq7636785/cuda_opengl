@@ -1,5 +1,8 @@
 #pragma once
 
+#include <thrust/execution_policy.h>
+#include <thrust/random.h>
+#include <thrust/remove.h>
 #include "intersections.h"
 
 // CHECKITOUT
@@ -29,6 +32,11 @@ glm::vec3 calculateRandomDirectionInHemisphere(
     } else {
         directionNotNormal = glm::vec3(0, 0, 1);
     }
+//     if (abs(normal.z) > 0.999f) {
+//         directionNotNormal = glm::vec3(1.0f, 0.0f, 0.0f);
+//     } else {
+//         directionNotNormal = glm::vec3(0.0f, 1.0f, 0.0f);
+//     }
 
     // Use not-normal direction to generate two perpendicular directions
     glm::vec3 perpendicularDirection1 =
@@ -68,12 +76,25 @@ glm::vec3 calculateRandomDirectionInHemisphere(
 */
 __host__ __device__
 void scatterRay(
-PathSegment & pathSegment,
-glm::vec3 intersect,
-glm::vec3 normal,
-const Material &m,
-thrust::default_random_engine &rng) {
+    PathSegment & pathSegment,
+    glm::vec3 intersect,
+    glm::vec3 normal,
+    const Material &m,
+    thrust::default_random_engine &rng) {
     // TODO: implement this.
     // A basic implementation of pure-diffuse shading will just call the
     // calculateRandomDirectionInHemisphere defined above.
+
+    //diffuse
+    float cosTheta = glm::abs(glm::dot(normal, pathSegment.ray.diretion));
+    if (m.emittance > 0) {
+        pathSegment.color *= (m.emittance * m.color);
+        pathSegment.remainingBounces = 0;
+    } else {
+        pathSegment.ray.diretion = calculateRandomDirectionInHemisphere(normal, rng);
+        pathSegment.ray.position = intersect + pathSegment.ray.diretion *0.001f;
+        pathSegment.color *= m.color;
+        pathSegment.remainingBounces--;
+    }
+    
 }
