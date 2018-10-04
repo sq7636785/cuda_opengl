@@ -34,7 +34,7 @@ int                 height;
 
 
 int main() {
-    const char* sceneFile = "cornellBox.txt";
+    const char* sceneFile = "cornell2.txt";
     scene = new Scene(sceneFile);
 
     iteration = 0;
@@ -108,13 +108,13 @@ void runCuda() {
         cameraPosition.z = zoom * sin(theta) * cos(phi);
 
         cam.view = glm::normalize(cameraPosition);
-        //计算u和r的时候，右手坐标系，要用-view方向计算。 因为view是看向-z方向的， 在填lookat矩阵的时候也是这样的。
-        glm::vec3 v = -cam.view;
+        //计算u和r的时候，右手坐标系，要用view方向计算。 因为view是看向-z方向的， 在填lookat矩阵要把view方向取-作为正Z方向。
+        glm::vec3 v = cam.view;
         glm::vec3 u = glm::vec3(0, 1, 0);//glm::normalize(cam.up);
         glm::vec3 r = glm::cross(v, u);
         cam.up = glm::cross(r, v);
         cam.right = r;
-
+        
         //lookat = position + view
         //posiiton = lookat - view. = (+ camerePosition).
         cam.position = cam.lookAt - cameraPosition;
@@ -184,7 +184,7 @@ void mousePositionCallback(GLFWwindow* window, double xpos, double ypos) {
 
     if (leftMousePressed) {
         //update camera parameters
-        phi += (xpos - xPos) / static_cast<double>(width);
+        phi -= (xpos - xPos) / static_cast<double>(width);
         theta += (ypos - yPos) / static_cast<double>(height);
         theta = std::fmax(0.001f, std::fmin(theta, PI));
         cameraChanged = true;

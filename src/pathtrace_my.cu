@@ -127,17 +127,24 @@ __global__
 void generateRayFromCamera(Camera cam, int iter, int traceDepth, PathSegment* pathSegments) {
     int x = blockDim.x * blockIdx.x + threadIdx.x;
     int y = blockDim.y * blockIdx.y + threadIdx.y;
-    
+
     if (x < cam.resolution.x && y < cam.resolution.y) {
         int index = y * cam.resolution.x + x;
+
+        thrust::default_random_engine rng = makeSeededRandomEngine(iter, index, traceDepth);
+        thrust::uniform_real_distribution<float> u01(0, 1);
+
+        float xMov = u01(rng);
+        float yMov = u01(rng);
+
         PathSegment &tmp = pathSegments[index];
         tmp.ray.position = cam.position;
         tmp.remainingBounces = traceDepth;
         tmp.pixelIndex = index;
         tmp.color = glm::vec3(1.0, 1.0, 1.0);
         // TODO: implement antialiasing by jittering the ray
-        tmp.ray.diretion = glm::normalize(cam.view - (static_cast<float>(x)-cam.resolution.x * 0.5f) * cam.pixelLength.x * cam.right
-                                                   - (static_cast<float>(y)-cam.resolution.y * 0.5f) * cam.pixelLength.y * cam.up);
+        tmp.ray.diretion = glm::normalize(cam.view - (static_cast<float>(x) + xMov -cam.resolution.x * 0.5f) * cam.pixelLength.x * cam.right
+                                                   - (static_cast<float>(y) + yMov -cam.resolution.y * 0.5f) * cam.pixelLength.y * cam.up);
     }
 }
 
@@ -237,7 +244,7 @@ void shadeFakeMaterial(
 
 
 __global__
-void shadeMaterial(int dp, int iter, int num_paths, ShadeableIntersection* intersections, PathSegment* pathSegments, Material* materials) {
+void shadeMaterial(int dp, int iter, int num_paths, ShadeableIntersection* intersections, PathSegment* pathSegments, Material* materials, bool firstHit) {
     int index = blockDim.x * blockIdx.x + threadIdx.x;
 
     if (index < num_paths) {
@@ -250,7 +257,7 @@ void shadeMaterial(int dp, int iter, int num_paths, ShadeableIntersection* inter
                 //这里参数的最后一个不能是0,不然会出bug
                 thrust::default_random_engine rng = makeSeededRandomEngine(iter, index, dp);
                 glm::vec3 intersectPoint = getPointOnRay(pathSegment.ray, intersect.t);
-                scatterRay(pathSegment, intersectPoint, intersect.surfaceNormal, material, rng);
+                scatterRay(pathSegment, intersectPoint, intersect.surfaceNormal, material, rng, firstHit);
 
                // float cosTheta = glm::abs(glm::dot(normal, pathSegment.ray.diretion));
            //     if (material.emittance > 0) {
@@ -324,6 +331,12 @@ void pathTrace(uchar4* pbo, int frame, int iter) {
 
     //1d block for pathtracing
     const int blockSize1d = 128;
+
+    const int subPixelNum = 1;
+    const float subPixelInc = 1.0f / static_cast<float>(subPixelNum);
+
+    
+        
     generateRayFromCamera << <blockPerGrid2d, blockSize2d >> >(cam, iter, traceDepth, dev_paths);
     checkCUDAError("generate ray from camera");
 
@@ -335,7 +348,8 @@ void pathTrace(uchar4* pbo, int frame, int iter) {
     // --- PathSegment Tracing Stage ---
     // Shoot ray into scene, bounce between objects, push shading chunks
 
-    int iterationComplete = 0;
+    int iterationComplete = 1;
+    bool firstHit = true;
     while (iterationComplete < traceDepth) {
         cudaMemset(dev_intersection, 0, sizeof(ShadeableIntersection)* pixelNum);
 
@@ -368,9 +382,11 @@ void pathTrace(uchar4* pbo, int frame, int iter) {
             num_paths,
             dev_intersection,
             dev_paths,
-            dev_material);
+            dev_material,
+            firstHit);
 
         iterationComplete++;// TODO: should be based off stream compaction results.
+        firstHit = false;
     }
 
     dim3 numBlockPixels = (pixelNum + blockSize1d - 1) / blockSize1d;
@@ -380,11 +396,11 @@ void pathTrace(uchar4* pbo, int frame, int iter) {
         dev_paths);
 
     checkCUDAError("gather image");
-
+    
     sendImageToPBO << <blockPerGrid2d, blockSize2d >> > (
         pbo,
         cam.resolution,
-        iter,
+        iter * subPixelNum,
         dev_image);
 
     checkCUDAError("image to pbo");
