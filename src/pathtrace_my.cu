@@ -131,8 +131,8 @@ void generateRayFromCamera(Camera cam, int iter, int traceDepth, PathSegment* pa
     if (x < cam.resolution.x && y < cam.resolution.y) {
         int index = y * cam.resolution.x + x;
 
-        thrust::default_random_engine rng = makeSeededRandomEngine(iter, index, traceDepth);
-        thrust::uniform_real_distribution<float> u01(0, 1);
+        thrust::default_random_engine rng = makeSeededRandomEngine(iter, x, y);
+        thrust::uniform_real_distribution<float> u01(-0.5, 0.5);
 
         float xMov = u01(rng);
         float yMov = u01(rng);
@@ -244,7 +244,7 @@ void shadeFakeMaterial(
 
 
 __global__
-void shadeMaterial(int dp, int iter, int num_paths, ShadeableIntersection* intersections, PathSegment* pathSegments, Material* materials, bool firstHit) {
+void shadeMaterial(int dp, int iter, int num_paths, ShadeableIntersection* intersections, PathSegment* pathSegments, Material* materials) {
     int index = blockDim.x * blockIdx.x + threadIdx.x;
 
     if (index < num_paths) {
@@ -254,45 +254,17 @@ void shadeMaterial(int dp, int iter, int num_paths, ShadeableIntersection* inter
 
         if (pathSegment.remainingBounces > 0) {
             if (intersect.t > 0) {
-                //这里参数的最后一个不能是0,不然会出bug
-                thrust::default_random_engine rng = makeSeededRandomEngine(iter, index, dp);
-                glm::vec3 intersectPoint = getPointOnRay(pathSegment.ray, intersect.t);
-                scatterRay(pathSegment, intersectPoint, intersect.surfaceNormal, material, rng, firstHit);
 
-               // float cosTheta = glm::abs(glm::dot(normal, pathSegment.ray.diretion));
-           //     if (material.emittance > 0) {
-           //         pathSegment.color *= (material.emittance * material.color);
-           //         pathSegment.remainingBounces = 0;
-           //     } else {
-                    
-           //         pathSegment.ray.diretion = calculateRandomDirectionInHemisphere(intersect.surfaceNormal, rng);
-           //         pathSegment.ray.position = intersectPoint + pathSegment.ray.diretion *0.001f;
-           //         pathSegment.color *= material.color;
-           //         pathSegment.remainingBounces--;
-           //     }
+                if (material.emittance > 0) {
+                    pathSegment.color *= (material.emittance * material.color);
+                    pathSegment.remainingBounces = 0;
+                } else {
 
-                //diffus
-
-                //pathSegment.color = pathSegment.color * material.color * glm::abs(glm::dot(intersect.surfaceNormal, pathSegment.ray.diretion));
-                //pathSegment.ray.position = getPointOnRay(pathSegment.ray, intersect.t);
-                //pathSegment.ray.diretion = calculateRandomDirectionInHemisphere(intersect.surfaceNormal, rng);
-
-
-                //glm::vec3 light = glm::vec3(1.0f, 1.0f, 1.0f);
-
-                //--pathSegment.remainingBounces;
-                //if (material.emittance > 0) {
-                //    light.x = light.y = light.z = material.emittance;
-                //    pathSegment.color *= light;
-                //    pathSegment.remainingBounces = 0;
-                //} else {
-                //    if (pathSegment.remainingBounces == 0) {
-                //        pathSegment.color = glm::vec3(0.0f);
-                //    }
-                //}
-            //} else {
-            //    pathSegment.remainingBounces = 0;
-            //    pathSegment.color = glm::vec3(0.0f);
+                    //这里参数的最后一个不能是0,不然会出bug
+                    thrust::default_random_engine rng = makeSeededRandomEngine(iter, index, pathSegment.remainingBounces);
+                    glm::vec3 intersectPoint = getPointOnRay(pathSegment.ray, intersect.t);
+                    scatterRay(pathSegment, intersectPoint, intersect.surfaceNormal, material, rng);
+                }
             } else {
                 pathSegment.color = glm::vec3(0.0f);
                 pathSegment.remainingBounces = 0;
@@ -349,7 +321,7 @@ void pathTrace(uchar4* pbo, int frame, int iter) {
     // Shoot ray into scene, bounce between objects, push shading chunks
 
     int iterationComplete = 1;
-    bool firstHit = true;
+    
     while (iterationComplete < traceDepth) {
         cudaMemset(dev_intersection, 0, sizeof(ShadeableIntersection)* pixelNum);
 
@@ -382,11 +354,11 @@ void pathTrace(uchar4* pbo, int frame, int iter) {
             num_paths,
             dev_intersection,
             dev_paths,
-            dev_material,
-            firstHit);
+            dev_material
+            );
 
         iterationComplete++;// TODO: should be based off stream compaction results.
-        firstHit = false;
+        
     }
 
     dim3 numBlockPixels = (pixelNum + blockSize1d - 1) / blockSize1d;

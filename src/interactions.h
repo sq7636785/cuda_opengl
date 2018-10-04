@@ -77,22 +77,25 @@ glm::vec3 calculateRandomDirectionInHemisphere(
 
 
 __host__ __device__
-glm::vec3 fractRay(PathSegment &pathSegment, glm::vec3 normal) {
-    glm::vec3 wi;// = glm::normalize(glm::refract(pathSegment.ray.diretion, normal, 0.7f));
+glm::vec3 fractRay(PathSegment &pathSegment, glm::vec3 normal, float prob) {
 
-    bool into = glm::dot(pathSegment.ray.diretion, normal) < 0;
-    float nc = 1, nt = 1.5;
-    float nnt = into ? nc / nt : nt / nc;
-    float ddn = glm::abs(glm::dot(pathSegment.ray.diretion, normal));
-    float cos2t;
-
-    //total internal reflection
-    if ((cos2t = 1 - nnt * nnt * (1 - ddn * ddn)) < 0) {
-        wi = glm::normalize(glm::reflect(pathSegment.ray.diretion, normal));
-    } else {
-        wi = glm::normalize((pathSegment.ray.diretion * nnt - normal * ((into ? 1 : -1) * (ddn * nnt + sqrt(cos2t)))));
+    glm::vec3 direction;
+    float NI = glm::dot(normal, pathSegment.ray.diretion);
+    float ratio = 1.5f;
+    if (NI < 0) {
+        ratio = 1.f / ratio;
     }
-    return wi;
+    float r0 = (1.f - ratio) / (1.f + ratio);
+    r0 *= r0;
+    float x = 1.f + NI;
+    float r = r0 + (1.f - r0) * x * x * x * x * x;
+    
+    if (prob < r) {
+        direction = glm::reflect(pathSegment.ray.diretion, normal);
+    } else {
+        direction = glm::refract(pathSegment.ray.diretion, normal, ratio);
+    }
+    return direction;
 }
 
 __host__ __device__
@@ -101,8 +104,7 @@ void scatterRay(
     glm::vec3 intersect,
     glm::vec3 normal,
     const Material &m,
-    thrust::default_random_engine &rng,
-    bool firstHit) {
+    thrust::default_random_engine &rng) {
     // TODO: implement this.
     // A basic implementation of pure-diffuse shading will just call the
     // calculateRandomDirectionInHemisphere defined above.
@@ -110,41 +112,22 @@ void scatterRay(
     //diffuse
     thrust::uniform_real_distribution<float> u01(0, 1);
     float prob = u01(rng);
-    glm::vec3 direction;
+    glm::vec3 wi;
 
-    if (m.emittance > 0) {
-        pathSegment.color *= (m.emittance * m.color);
-        pathSegment.remainingBounces = 0;
+    if (m.hasReflective > 0) {
+        wi = glm::normalize(glm::reflect(pathSegment.ray.diretion, normal));
+        pathSegment.color *= m.specular.color;
+    } else if (m.hasRefractive > 0) {
+        float prob = u01(rng);
+        wi = fractRay(pathSegment, normal, prob);
+        pathSegment.color *= m.specular.color;
     } else {
-        
-        if (m.hasReflective) {
-            
-                glm::vec3 wi = glm::normalize(glm::reflect(pathSegment.ray.diretion, normal));
-            
-            pathSegment.color *= m.specular.color;
-            pathSegment.ray.position = intersect + wi * 0.01f;
-            pathSegment.ray.diretion = wi;
-            
-            pathSegment.remainingBounces--;
-
-        } else if (m.hasRefractive) {
-            
-            glm::vec3 wi = fractRay(pathSegment, normal);
-            //glm::vec3 wi = glm::normalize(glm::refract(pathSegment.ray.diretion, normal, 1.0f / 1.5f));
-            pathSegment.ray.position = intersect + wi * 0.01f;
-            pathSegment.ray.diretion = wi;
-            pathSegment.color *= m.specular.color;
-            pathSegment.remainingBounces--;
-        } else {
-            //lambert
-            glm::vec3 wi = calculateRandomDirectionInHemisphere(normal, rng);
-            float cosTheta = glm::abs(glm::dot(normal, wi));
-            pathSegment.ray.position = intersect + wi *0.01f;
-            pathSegment.ray.diretion = wi;
-            pathSegment.color *= m.color;
-            if (firstHit) { pathSegment.color *= cosTheta; }
-            pathSegment.remainingBounces--;
-        }
+        //lambert
+        wi = calculateRandomDirectionInHemisphere(normal, rng);
     }
+    pathSegment.remainingBounces--;
+    pathSegment.ray.position = intersect + wi * EPSILON;
+    pathSegment.ray.diretion = wi;
+    pathSegment.color *= m.color;
     
 }
