@@ -237,7 +237,7 @@ void shadeFakeMaterial(
 
 
 __global__
-void shadeMaterial(int iter, int num_paths, ShadeableIntersection* intersections, PathSegment* pathSegments, Material* materials) {
+void shadeMaterial(int dp, int iter, int num_paths, ShadeableIntersection* intersections, PathSegment* pathSegments, Material* materials) {
     int index = blockDim.x * blockIdx.x + threadIdx.x;
 
     if (index < num_paths) {
@@ -247,7 +247,8 @@ void shadeMaterial(int iter, int num_paths, ShadeableIntersection* intersections
 
         if (pathSegment.remainingBounces > 0) {
             if (intersect.t > 0) {
-                thrust::default_random_engine rng = makeSeededRandomEngine(iter, index, 0);
+                //这里参数的最后一个不能是0,不然会出bug
+                thrust::default_random_engine rng = makeSeededRandomEngine(iter, index, dp);
                 glm::vec3 intersectPoint = getPointOnRay(pathSegment.ray, intersect.t);
                 scatterRay(pathSegment, intersectPoint, intersect.surfaceNormal, material, rng);
 
@@ -362,6 +363,7 @@ void pathTrace(uchar4* pbo, int frame, int iter) {
         // TODO: compare between directly shading the path segments and shading
         // path segments that have been reshuffled to be contiguous in memory.
         shadeMaterial << <numBlockPathSegmentTracing, blockSize1d >> >(
+            depth,
             iter,
             num_paths,
             dev_intersection,

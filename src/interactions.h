@@ -86,12 +86,13 @@ void scatterRay(
     // calculateRandomDirectionInHemisphere defined above.
 
     //diffuse
-    float cosTheta = glm::abs(glm::dot(normal, pathSegment.ray.diretion));
+    
     if (m.emittance > 0) {
         pathSegment.color *= (m.emittance * m.color);
         pathSegment.remainingBounces = 0;
     } else {
         pathSegment.ray.diretion = calculateRandomDirectionInHemisphere(normal, rng);
+        float cosTheta = glm::abs(glm::dot(normal, pathSegment.ray.diretion));
         pathSegment.ray.position = intersect + pathSegment.ray.diretion *0.001f;
         pathSegment.color *= m.color;
         pathSegment.remainingBounces--;
