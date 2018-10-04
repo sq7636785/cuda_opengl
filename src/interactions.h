@@ -126,7 +126,7 @@ void scatterRay(
         wi = calculateRandomDirectionInHemisphere(normal, rng);
     }
     pathSegment.remainingBounces--;
-    pathSegment.ray.position = intersect + wi * EPSILON;
+    pathSegment.ray.position = intersect + wi * 0.001f;
     pathSegment.ray.diretion = wi;
     pathSegment.color *= m.color;
     
