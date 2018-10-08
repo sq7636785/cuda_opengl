@@ -166,8 +166,10 @@ bool init() {
 void mainLoop() {
     while (!glfwWindowShouldClose(window)) {
         glfwPollEvents();
-
+        time_t s = clock();
         runCuda();
+        time_t e = clock();
+        std::cout << e - s << std::endl;
         std::string title = "CUDA PT" + utilityCore::convertIntToString(iteration) + "iterations";
         glfwSetWindowTitle(window, title.c_str());
 

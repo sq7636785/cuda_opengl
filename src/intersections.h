@@ -24,7 +24,7 @@ inline unsigned int utilhash(unsigned int a) {
 
 __host__ __device__
 glm::vec3 getPointOnRay(Ray r, float t) {
-    return r.position + (t - 0.0001f) * glm::normalize(r.diretion);
+    return r.position + (t) * glm::normalize(r.diretion);
 }
 
 __host__ __device__

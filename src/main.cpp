@@ -34,6 +34,7 @@ int                 height;
 
 
 int main() {
+    //const char* sceneFile = "cornellBox_threeSphere.txt";
     const char* sceneFile = "cornell.txt";
     scene = new Scene(sceneFile);
 
@@ -56,10 +57,14 @@ int main() {
     */
     /************************************************************************/
     
-    //这里和-Z轴做dot， 因为theta决定不了指向的， phi才可以。
-    //和-z轴做dot是不是就是视线的负方向。
+    //已更正：
+    //phi是与正Z轴的夹角。
+    //这样根据phi和theta计算出的方向向量就是视线方向
+    //乘上focalLength就是lookat到摄像机位置的距离向量
+
+    
     glm::vec3 v = cam.view;
-    phi = acos(glm::dot(v, glm::vec3(0.0f, 0.0f, -1.0f)));
+    phi = acos(glm::dot(v, glm::vec3(0.0f, 0.0f, 1.0f)));
     theta = acos(glm::dot(v, glm::vec3(0.0f, 1.0f, 0.0f)));
     
     init();
@@ -98,23 +103,22 @@ void runCuda() {
 
         Camera &cam = renderState->camera;
         //因为视线的表示theta和phi已经求出来了，所以这里就可以直接根据theta和phi的改变来更新视线方向。
-        //所以这个变量命名的不好，这里应该是viewdirection.
+        //所以这个变量命名的不好，这里应该是 look到摄像机位置的距离向量.
         cameraPosition.x = zoom * sin(theta) * sin(phi);
         cameraPosition.y = zoom * cos(theta);
         cameraPosition.z = zoom * sin(theta) * cos(phi);
-        
-        //这里取负？ 是不是因为phi求的是和-z轴的夹角。
-        //还是肯定是负的.
-        cam.view = -glm::normalize(cameraPosition);
+
+        cam.view = glm::normalize(cameraPosition);
+        //计算u和r的时候，右手坐标系，要用view方向计算。 因为view是看向-z方向的， 在填lookat矩阵要把view方向取-作为正Z方向。
         glm::vec3 v = cam.view;
         glm::vec3 u = glm::vec3(0, 1, 0);//glm::normalize(cam.up);
         glm::vec3 r = glm::cross(v, u);
         cam.up = glm::cross(r, v);
         cam.right = r;
-
+        
         //lookat = position + view
         //posiiton = lookat - view. = (+ camerePosition).
-        cam.position = cameraPosition + cam.lookAt;
+        cam.position = cam.lookAt - cameraPosition;
         cameraChanged = false;
     }
 
@@ -176,13 +180,13 @@ void mousePositionCallback(GLFWwindow* window, double xpos, double ypos) {
 
     /************************************************************************/
     /* problem                                                              */
-    /* 这里需要调整以下变量改动， 来更好的理解交互                          */
+    /* 这里需要调整以下变量改动， 来更好的理解交互    已根据自己的理解修改，work                  */
     /************************************************************************/
 
     if (leftMousePressed) {
         //update camera parameters
         phi -= (xpos - xPos) / static_cast<double>(width);
-        theta -= (ypos - yPos) / static_cast<double>(height);
+        theta += (ypos - yPos) / static_cast<double>(height);
         theta = std::fmax(0.001f, std::fmin(theta, PI));
         cameraChanged = true;
     }

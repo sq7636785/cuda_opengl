@@ -60,9 +60,10 @@ void sendImageToPBO(uchar4* pbo, glm::ivec2 resolution, int iter, glm::vec3* ima
         glm::vec3 pix = image[index];
 
         glm::ivec3 color;
-        color.x = glm::clamp(static_cast<int>(pix.x / iter * 255.0), 0, 255);
-        color.y = glm::clamp(static_cast<int>(pix.y / iter * 255.0), 0, 255);
-        color.z = glm::clamp(static_cast<int>(pix.z / iter * 255.0), 0, 255);
+        float total = static_cast<float>(iter);
+        color.x = glm::clamp(static_cast<int>(pix.x / total * 255.0), 0, 255);
+        color.y = glm::clamp(static_cast<int>(pix.y / total * 255.0), 0, 255);
+        color.z = glm::clamp(static_cast<int>(pix.z / total * 255.0), 0, 255);
 
         pbo[index].w = 0;
         pbo[index].x = color.x;
@@ -126,17 +127,24 @@ __global__
 void generateRayFromCamera(Camera cam, int iter, int traceDepth, PathSegment* pathSegments) {
     int x = blockDim.x * blockIdx.x + threadIdx.x;
     int y = blockDim.y * blockIdx.y + threadIdx.y;
-    
+
     if (x < cam.resolution.x && y < cam.resolution.y) {
         int index = y * cam.resolution.x + x;
+
+        thrust::default_random_engine rng = makeSeededRandomEngine(iter, x, y);
+        thrust::uniform_real_distribution<float> u01(-0.5, 0.5);
+
+        float xMov = u01(rng);
+        float yMov = u01(rng);
+
         PathSegment &tmp = pathSegments[index];
         tmp.ray.position = cam.position;
         tmp.remainingBounces = traceDepth;
         tmp.pixelIndex = index;
         tmp.color = glm::vec3(1.0, 1.0, 1.0);
         // TODO: implement antialiasing by jittering the ray
-        tmp.ray.diretion = glm::normalize(cam.view - (static_cast<float>(x)-cam.resolution.x * 0.5f) * cam.pixelLength.x * cam.right
-                                                   - (static_cast<float>(y)-cam.resolution.y * 0.5f) * cam.pixelLength.y * cam.up);
+        tmp.ray.diretion = glm::normalize(cam.view - (static_cast<float>(x) + xMov -cam.resolution.x * 0.5f) * cam.pixelLength.x * cam.right
+                                                   - (static_cast<float>(y) + yMov -cam.resolution.y * 0.5f) * cam.pixelLength.y * cam.up);
     }
 }
 
@@ -235,6 +243,37 @@ void shadeFakeMaterial(
 }
 
 
+__global__
+void shadeMaterial(int dp, int iter, int num_paths, ShadeableIntersection* intersections, PathSegment* pathSegments, Material* materials) {
+    int index = blockDim.x * blockIdx.x + threadIdx.x;
+
+    if (index < num_paths) {
+        ShadeableIntersection &intersect = intersections[index];
+        Material &material = materials[intersect.materialId];
+        PathSegment &pathSegment = pathSegments[index];
+
+        if (pathSegment.remainingBounces > 0) {
+            if (intersect.t > 0) {
+
+                if (material.emittance > 0) {
+                    pathSegment.color *= (material.emittance * material.color);
+                    pathSegment.remainingBounces = 0;
+                } else {
+
+                    //这里参数的最后一个不能是0,不然会出bug
+                    thrust::default_random_engine rng = makeSeededRandomEngine(iter, index, pathSegment.remainingBounces);
+                    glm::vec3 intersectPoint = getPointOnRay(pathSegment.ray, intersect.t);
+                    scatterRay(pathSegment, intersectPoint, intersect.surfaceNormal, material, rng);
+                }
+            } else {
+                pathSegment.color = glm::vec3(0.0f);
+                pathSegment.remainingBounces = 0;
+            }
+        }
+    }
+}
+
+
 // Add the current iteration's output to the overall image
 __global__
 void finalGather(int nPaths, glm::vec3* image, PathSegment* iterationPaths) {
@@ -264,6 +303,12 @@ void pathTrace(uchar4* pbo, int frame, int iter) {
 
     //1d block for pathtracing
     const int blockSize1d = 128;
+
+    const int subPixelNum = 1;
+    const float subPixelInc = 1.0f / static_cast<float>(subPixelNum);
+
+    
+        
     generateRayFromCamera << <blockPerGrid2d, blockSize2d >> >(cam, iter, traceDepth, dev_paths);
     checkCUDAError("generate ray from camera");
 
@@ -275,8 +320,9 @@ void pathTrace(uchar4* pbo, int frame, int iter) {
     // --- PathSegment Tracing Stage ---
     // Shoot ray into scene, bounce between objects, push shading chunks
 
-    bool iterationComplete = false;
-    while (!iterationComplete) {
+    int iterationComplete = 1;
+    
+    while (iterationComplete < traceDepth) {
         cudaMemset(dev_intersection, 0, sizeof(ShadeableIntersection)* pixelNum);
 
         dim3 numBlockPathSegmentTracing = (num_paths + blockSize1d - 1) / blockSize1d;
@@ -302,14 +348,17 @@ void pathTrace(uchar4* pbo, int frame, int iter) {
         // materials you have in the scenefile.
         // TODO: compare between directly shading the path segments and shading
         // path segments that have been reshuffled to be contiguous in memory.
-        shadeFakeMaterial << <numBlockPathSegmentTracing, blockSize1d >> >(
+        shadeMaterial << <numBlockPathSegmentTracing, blockSize1d >> >(
+            depth,
             iter,
             num_paths,
             dev_intersection,
             dev_paths,
-            dev_material);
+            dev_material
+            );
 
-        iterationComplete = true;// TODO: should be based off stream compaction results.
+        iterationComplete++;// TODO: should be based off stream compaction results.
+        
     }
 
     dim3 numBlockPixels = (pixelNum + blockSize1d - 1) / blockSize1d;
@@ -319,11 +368,11 @@ void pathTrace(uchar4* pbo, int frame, int iter) {
         dev_paths);
 
     checkCUDAError("gather image");
-
+    
     sendImageToPBO << <blockPerGrid2d, blockSize2d >> > (
         pbo,
         cam.resolution,
-        iter,
+        iter * subPixelNum,
         dev_image);
 
     checkCUDAError("image to pbo");

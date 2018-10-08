@@ -102,7 +102,7 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <IncludePath>E:\CUDAopengl\cuda_opengl\external\include;$(IncludePath)</IncludePath>
-    <LibraryPath>E:\CUDAopengl\cuda_opengl\external\lib\win;$(LibraryPath)</LibraryPath>
+    <LibraryPath>../external/lib/win;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
