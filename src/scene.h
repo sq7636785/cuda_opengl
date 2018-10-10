@@ -17,6 +17,7 @@ class Scene {
       int loadMaterial(std::string fileName);
       int loadGeometry(std::string fileName);
       int loadCamera();
+      int loadObj(std::string objPath, Geometry &newGeom);
 
   public:
       Scene(const std::string &fileName);
@@ -24,6 +25,7 @@ class Scene {
 
       std::vector<Geometry> geometrys;
       std::vector<Material> materials;
+      std::vector<Triangle> triangles;
       RenderState           state;
 };
 

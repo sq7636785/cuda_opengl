@@ -5,6 +5,9 @@
 #include "glm/gtx/string_cast.hpp"
 #include "scene.h"
 
+#include "tiny_obj_loader.h"
+static int tri_index = 0;
+
 Scene::Scene(const std::string &fileName) {
     std::cout << "reading files " << fileName << "..." << std::endl;
     fp_in.open(fileName.c_str());
@@ -43,7 +46,7 @@ int Scene::loadGeometry(std::string fileName) {
         std::cout << "Load Geometry " << id << std::endl;
         Geometry newGeom;
         std::string line;
-
+       
         utilityCore::safeGetline(fp_in, line);
         if (!line.empty() && fp_in.good()) {
             if (strcmp(line.c_str(), "sphere") == 0) {
@@ -52,6 +55,9 @@ int Scene::loadGeometry(std::string fileName) {
             } else if (strcmp(line.c_str(), "cube") == 0) {
                 std::cout << "creating new cube" << std::endl;
                 newGeom.type = CUBE;
+            } else if (strcmp(line.c_str(), "mesh") == 0) {
+                std::cout << "creating new mesh" << std::endl;
+                newGeom.type = MESH;
             }
         }
 
@@ -75,6 +81,9 @@ int Scene::loadGeometry(std::string fileName) {
                 newGeom.rotation = glm::vec3(atof(tokens[1].c_str()), atof(tokens[2].c_str()), atof(tokens[3].c_str()));
             } else if (strcmp(tokens[0].c_str(), "SCALE") == 0) {
                 newGeom.scale = glm::vec3(atof(tokens[1].c_str()), atof(tokens[2].c_str()), atof(tokens[3].c_str()));
+            } else if (strcmp(tokens[0].c_str(), "OBJ_PATH") == 0) {
+                loadObj(tokens[1], newGeom);
+                //std::cout << triangles.size() << std::endl;
             }
 
             utilityCore::safeGetline(fp_in, line);
@@ -83,6 +92,7 @@ int Scene::loadGeometry(std::string fileName) {
         newGeom.transform = utilityCore::buildTransformationMatrix(newGeom.translation, newGeom.rotation, newGeom.scale);
         newGeom.inverseTransform = glm::inverse(newGeom.transform);
         newGeom.invTranspose = glm::inverseTranspose(newGeom.transform);
+
 
         geometrys.push_back(newGeom);
         return 1;
@@ -222,4 +232,42 @@ int Scene::loadCamera() {
     std::cout << "load camera" << std::endl;
 
     return 1;
+}
+
+
+int Scene::loadObj(std::string objPath, Geometry &newGeom) {
+    std::vector<tinyobj::shape_t> shapes;
+    std::vector<tinyobj::material_t> materials;
+    std::string errors = tinyobj::LoadObj(shapes, materials, objPath.c_str());
+    std::cout << errors << std::endl;
+
+    if (errors.size() == 0) {
+        newGeom.startIndex = triangles.size();
+
+        for (unsigned int i = 0; i < shapes.size(); i++) {
+            std::vector<float> &positions = shapes[i].mesh.positions;
+            std::vector<float> &normals = shapes[i].mesh.normals;
+            std::vector<float> &uvs = shapes[i].mesh.texcoords;
+            std::vector<unsigned int> &indices = shapes[i].mesh.indices;
+            for (unsigned int j = 0; j < indices.size(); j += 3) {
+                Triangle t;
+                t.index = tri_index++;
+                t.vertices[0] = glm::vec3(positions[indices[j] * 3], positions[indices[j] * 3 + 1], positions[indices[j] * 3 + 2]);
+                t.vertices[1] = glm::vec3(positions[indices[j + 1] * 3], positions[indices[j + 1] * 3 + 1], positions[indices[j + 1] * 3 + 2]);
+                t.vertices[2] = glm::vec3(positions[indices[j + 2] * 3], positions[indices[j + 2] * 3 + 1], positions[indices[j + 2] * 3 + 2]);
+
+                if (normals.size() > 0) {
+                    t.normals[0] = glm::vec3(normals[indices[j] * 3], normals[indices[j] * 3 + 1], normals[indices[j] * 3 + 2]);
+                    t.normals[1] = glm::vec3(normals[indices[j + 1] * 3], normals[indices[j + 1] * 3 + 1], normals[indices[j + 1] * 3 + 2]);
+                    t.normals[2] = glm::vec3(normals[indices[j + 2] * 3], normals[indices[j + 2] * 3 + 1], normals[indices[j + 2] * 3 + 2]);
+                }
+                triangles.push_back(t);
+            }
+        }
+        newGeom.endIndex = tri_index;
+        return 1;
+    } else {
+        std::cout << errors << std::endl;
+        return -1;
+    }
 }

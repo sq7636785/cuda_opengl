@@ -110,8 +110,9 @@ SCALE       .01 10 10
 
 // Sphere
 OBJECT 6
-sphere
+mesh
 material 4
-TRANS       -1 4 -1
+TRANS       0 0 0
 ROTAT       0 0 0
-SCALE       3 3 3
+SCALE       0.01 0.01 0.01
+OBJ_PATH	desk.obj

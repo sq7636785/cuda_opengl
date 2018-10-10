@@ -79,7 +79,7 @@ static Geometry*                dev_geometry = NULL;
 static Material*                dev_material = NULL;
 static PathSegment*             dev_paths = NULL;
 static ShadeableIntersection*   dev_intersection = NULL;
-
+static Triangle*                dev_tris = NULL;
 
 void pathTraceInit(Scene* scene) {
     hst_scene = scene;
@@ -100,6 +100,9 @@ void pathTraceInit(Scene* scene) {
     cudaMalloc(&dev_intersection, pixelNum * sizeof(ShadeableIntersection));
     cudaMemset(dev_intersection, 0, pixelNum * sizeof(ShadeableIntersection));
 
+    cudaMalloc(&dev_tris, hst_scene->triangles.size() * sizeof(Triangle));
+    cudaMemcpy(dev_tris, hst_scene->triangles.data(), hst_scene->triangles.size() * sizeof(Triangle), cudaMemcpyHostToDevice);
+
     checkCUDAError("pathTraceInit");
 }
 
@@ -110,7 +113,7 @@ void pathTraceFree() {
     cudaFree(dev_image);
     cudaFree(dev_intersection);
     cudaFree(dev_paths);
-
+    cudaFree(dev_tris);
     checkCUDAError("pathTraceFree");
 }
 
@@ -160,7 +163,8 @@ void computeIntersection(
     PathSegment* pathSegments, 
     Geometry* geoms, 
     int geoms_size, 
-    ShadeableIntersection *intersections) {
+    ShadeableIntersection *intersections,
+    Triangle* tris) {
     
     int index = blockDim.x * blockIdx.x + threadIdx.x;
     if (index < num_paths) {
@@ -181,6 +185,8 @@ void computeIntersection(
                 t = sphereIntersectionTest(geoms[i], unit.ray, intersectPoint, normal, outside);
             } else if (geoms[i].type == GeomType::CUBE) {
                 t = boxIntersectionTest(geoms[i], unit.ray, intersectPoint, normal, outside);
+            } else if (geoms[i].type == GeomType::MESH) {
+                t = meshIntersectionTest(geoms[i], tris, unit.ray, intersectPoint, normal, outside);
             }
             //TODO:  more geometry type
             
@@ -332,7 +338,8 @@ void pathTrace(uchar4* pbo, int frame, int iter) {
             dev_paths,
             dev_geometry,
             hst_scene->geometrys.size(),
-            dev_intersection
+            dev_intersection,
+            dev_tris
             );
         checkCUDAError("compute intersection");
 

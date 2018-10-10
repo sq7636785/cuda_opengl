@@ -149,5 +149,25 @@ float sphereIntersectionTest(Geometry sphere, Ray r, glm::vec3 &intersectionPoin
 }
 
 
+__host__ __device__
+float meshIntersectionTest(Geometry mesh, Triangle* tris, Ray r, glm::vec3 &intersectionPoint, glm::vec3 &normal, bool &outside) {
+    float tMin = FLT_MAX;
+
+    glm::vec3 hitPoint;
+    glm::vec3 hitNormal;
+    
+    bool isHit;
+    for (int i = mesh.startIndex; i < mesh.endIndex; ++i) {
+        float t = tris[i].intersect(r, hitPoint, hitNormal, mesh.transform, mesh.inverseTransform, isHit);
+        if (t > 0.0f) {
+            if (t < tMin) {
+                tMin = t;
+                intersectionPoint = hitPoint;
+                normal = hitNormal;
+            }
+        }
+    }
+    return tMin;
+}
 
 #endif // !INTERSECTION_H

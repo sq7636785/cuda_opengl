@@ -5,10 +5,12 @@
 #include <vector>
 #include <cuda_runtime.h>
 #include "glm/glm.hpp"
+#include "glm/gtx/intersect.hpp"
 
 enum GeomType {
     SPHERE,
     CUBE,
+    MESH
 };
 
 struct Ray {
@@ -25,6 +27,9 @@ struct Geometry {
     glm::mat4       transform;
     glm::mat4       inverseTransform;
     glm::mat4       invTranspose;
+
+    int             startIndex;
+    int             endIndex;
 };
 
 struct Material {
@@ -74,6 +79,50 @@ struct ShadeableIntersection {
     float       t;
     glm::vec3   surfaceNormal;
     int         materialId;
+    int         hitGeomId;
+    glm::vec3   intersectPoint;
+    glm::vec3   tangentToWorld;
+};
+
+struct Vertex {
+    glm::vec3 position;
+    glm::vec3 normal;
+    Vertex(glm::vec3 v, glm::vec3 n) : position(v), normal(n) {}
+};
+
+
+struct Triangle {
+    int index;
+    glm::vec3 vertices[3];
+    glm::vec3 normals[3];
+    glm::vec2 uvs[3];
+
+    __host__ __device__
+        float intersect(const Ray &r, glm::vec3 &intersectPoint, glm::vec3 &normal, glm::mat4 &transform, glm::mat4 &invTransform, bool &outside) const {
+        glm::vec3 baryPosition(0.0f);
+        Ray ray;
+        ray.position = glm::vec3(invTransform * glm::vec4(r.position, 1.0f));
+        ray.diretion = glm::normalize(glm::vec3(invTransform * glm::vec4(r.diretion, 0.0f)));
+
+        float t = 0.0f;
+        if (glm::intersectRayTriangle(ray.position, ray.diretion, vertices[0], vertices[1], vertices[2], baryPosition)) {
+            
+            normal = normals[0] * (1.0f - baryPosition.x - baryPosition.y) +
+                normals[1] * baryPosition.x + normals[2] * baryPosition.y;
+            normal = glm::normalize(normal);
+            intersectPoint = r.position + baryPosition.z * glm::normalize(r.diretion);
+            intersectPoint = glm::vec3(transform * glm::vec4(intersectPoint, 1.0f));
+            normal = glm::vec3(transform * glm::vec4(normal, 0.0f));
+
+            outside = false;
+            t = baryPosition.z;
+        } else {
+            outside = true;
+            t = -1.0f;
+        }
+        return t;
+            
+    }
 };
 
 #endif // !DATA_STRUCTURE

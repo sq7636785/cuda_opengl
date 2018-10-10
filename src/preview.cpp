@@ -169,8 +169,7 @@ void mainLoop() {
         time_t s = clock();
         runCuda();
         time_t e = clock();
-        std::cout << e - s << std::endl;
-        std::string title = "CUDA PT" + utilityCore::convertIntToString(iteration) + "iterations";
+        std::string title = "CUDA PT" + utilityCore::convertIntToString(iteration) + "iterations" + " per iteration cost " + utilityCore::convertIntToString(e - s);
         glfwSetWindowTitle(window, title.c_str());
 
         glBindBuffer(GL_PIXEL_UNPACK_BUFFER, pbo);

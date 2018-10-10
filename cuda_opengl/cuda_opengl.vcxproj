@@ -32,6 +32,7 @@
     <ClInclude Include="..\src\utilities.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="..\external\include\tiny_obj_loader.cc" />
     <ClCompile Include="..\src\glslUtility.cpp" />
     <ClCompile Include="..\src\image.cpp" />
     <ClCompile Include="..\src\main.cpp" />
@@ -101,7 +102,7 @@
     <LibraryPath>../external/lib/win;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-    <IncludePath>E:\CUDAopengl\cuda_opengl\external\include;$(IncludePath)</IncludePath>
+    <IncludePath>../external/include;$(IncludePath)</IncludePath>
     <LibraryPath>../external/lib/win;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
@@ -165,7 +166,7 @@ copy "$(CudaToolkitBinDir)\cudart*.dll" "$(OutDir)"</Command>
       <Optimization>MaxSpeed</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
-      <PreprocessorDefinitions>WIN32;WIN64;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32;WIN64;NDEBUG;GLEW_STATIC;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
