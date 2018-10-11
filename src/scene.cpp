@@ -46,7 +46,9 @@ int Scene::loadGeometry(std::string fileName) {
         std::cout << "Load Geometry " << id << std::endl;
         Geometry newGeom;
         std::string line;
-       
+
+        bool isMesh = false;
+        std::string objPath;
         utilityCore::safeGetline(fp_in, line);
         if (!line.empty() && fp_in.good()) {
             if (strcmp(line.c_str(), "sphere") == 0) {
@@ -58,6 +60,7 @@ int Scene::loadGeometry(std::string fileName) {
             } else if (strcmp(line.c_str(), "mesh") == 0) {
                 std::cout << "creating new mesh" << std::endl;
                 newGeom.type = MESH;
+                isMesh = true;
             }
         }
 
@@ -82,7 +85,7 @@ int Scene::loadGeometry(std::string fileName) {
             } else if (strcmp(tokens[0].c_str(), "SCALE") == 0) {
                 newGeom.scale = glm::vec3(atof(tokens[1].c_str()), atof(tokens[2].c_str()), atof(tokens[3].c_str()));
             } else if (strcmp(tokens[0].c_str(), "OBJ_PATH") == 0) {
-                loadObj(tokens[1], newGeom);
+                objPath = tokens[1];
                 //std::cout << triangles.size() << std::endl;
             }
 
@@ -93,7 +96,9 @@ int Scene::loadGeometry(std::string fileName) {
         newGeom.inverseTransform = glm::inverse(newGeom.transform);
         newGeom.invTranspose = glm::inverseTranspose(newGeom.transform);
 
-
+        if (isMesh) {
+            loadObj(objPath, newGeom);
+        }
         geometrys.push_back(newGeom);
         return 1;
     }
@@ -244,6 +249,9 @@ int Scene::loadObj(std::string objPath, Geometry &newGeom) {
     if (errors.size() == 0) {
         newGeom.startIndex = triangles.size();
 
+        glm::mat4 transform = newGeom.transform;
+        glm::mat4 invTranspose = newGeom.invTranspose;
+
         for (unsigned int i = 0; i < shapes.size(); i++) {
             std::vector<float> &positions = shapes[i].mesh.positions;
             std::vector<float> &normals = shapes[i].mesh.normals;
@@ -252,14 +260,14 @@ int Scene::loadObj(std::string objPath, Geometry &newGeom) {
             for (unsigned int j = 0; j < indices.size(); j += 3) {
                 Triangle t;
                 t.index = tri_index++;
-                t.vertices[0] = glm::vec3(positions[indices[j] * 3], positions[indices[j] * 3 + 1], positions[indices[j] * 3 + 2]);
-                t.vertices[1] = glm::vec3(positions[indices[j + 1] * 3], positions[indices[j + 1] * 3 + 1], positions[indices[j + 1] * 3 + 2]);
-                t.vertices[2] = glm::vec3(positions[indices[j + 2] * 3], positions[indices[j + 2] * 3 + 1], positions[indices[j + 2] * 3 + 2]);
+                t.vertices[0] = glm::vec3(transform * glm::vec4(positions[indices[j] * 3], positions[indices[j] * 3 + 1], positions[indices[j] * 3 + 2], 1));
+                t.vertices[1] = glm::vec3(transform * glm::vec4(positions[indices[j + 1] * 3], positions[indices[j + 1] * 3 + 1], positions[indices[j + 1] * 3 + 2], 1));
+                t.vertices[2] = glm::vec3(transform * glm::vec4(positions[indices[j + 2] * 3], positions[indices[j + 2] * 3 + 1], positions[indices[j + 2] * 3 + 2], 1));
 
                 if (normals.size() > 0) {
-                    t.normals[0] = glm::vec3(normals[indices[j] * 3], normals[indices[j] * 3 + 1], normals[indices[j] * 3 + 2]);
-                    t.normals[1] = glm::vec3(normals[indices[j + 1] * 3], normals[indices[j + 1] * 3 + 1], normals[indices[j + 1] * 3 + 2]);
-                    t.normals[2] = glm::vec3(normals[indices[j + 2] * 3], normals[indices[j + 2] * 3 + 1], normals[indices[j + 2] * 3 + 2]);
+                    t.normals[0] = glm::vec3(invTranspose * glm::vec4(normals[indices[j] * 3], normals[indices[j] * 3 + 1], normals[indices[j] * 3 + 2], 0));
+                    t.normals[1] = glm::vec3(invTranspose * glm::vec4(normals[indices[j + 1] * 3], normals[indices[j + 1] * 3 + 1], normals[indices[j + 1] * 3 + 2], 0));
+                    t.normals[2] = glm::vec3(invTranspose * glm::vec4(normals[indices[j + 2] * 3], normals[indices[j + 2] * 3 + 1], normals[indices[j + 2] * 3 + 2], 0));
                 }
                 triangles.push_back(t);
             }

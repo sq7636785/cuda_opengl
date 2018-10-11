@@ -85,7 +85,7 @@ __host__ __device__
 glm::vec3 fractRay(PathSegment &pathSegment, glm::vec3 normal, float prob) {
 
     glm::vec3 direction;
-    float NI = glm::dot(normal, pathSegment.ray.diretion);
+    float NI = glm::dot(normal, pathSegment.ray.direction);
     float ratio = 1.5f;
     if (NI < 0) {
         ratio = 1.f / ratio;
@@ -96,9 +96,9 @@ glm::vec3 fractRay(PathSegment &pathSegment, glm::vec3 normal, float prob) {
     float r = r0 + (1.f - r0) * x * x * x * x * x;
 
     if (prob < r) {
-        direction = glm::reflect(pathSegment.ray.diretion, normal);
+        direction = glm::reflect(pathSegment.ray.direction, normal);
     } else {
-        direction = glm::refract(pathSegment.ray.diretion, normal, ratio);
+        direction = glm::refract(pathSegment.ray.direction, normal, ratio);
     }
     return direction;
 }
@@ -180,7 +180,7 @@ void scatterRay(
 
     if (m.hasReflective > 0) {
         if (m.specular.exponent == 0.0f) {
-            wi = glm::normalize(glm::reflect(pathSegment.ray.diretion, normal));
+            wi = glm::normalize(glm::reflect(pathSegment.ray.direction, normal));
         } else {
             wi = glm::normalize(ggxImportanceSample(normal, rng, m.specular.exponent));
         }
@@ -200,7 +200,7 @@ void scatterRay(
         float metallic = 0.2f;
         float F0 = 0.3f;
         float roughness = 0.8f;
-        glm::vec3 V = glm::dot(normal, pathSegment.ray.diretion) < 0.0f ? -pathSegment.ray.diretion : pathSegment.ray.diretion;
+        glm::vec3 V = glm::dot(normal, pathSegment.ray.direction) < 0.0f ? -pathSegment.ray.direction : pathSegment.ray.direction;
         glm::vec3 H = glm::normalize(wi + V);
         glm::vec3 F = fresnelSchlickRoughness(glm::max(glm::dot(V, normal), 0.0f), glm::vec3(F0, F0, F0), roughness);
         float NDF = distributionGGX(normal, H, roughness);
@@ -215,7 +215,7 @@ void scatterRay(
         pathSegment.color *= (diffuse + specular);
     }
     pathSegment.remainingBounces--;
-    pathSegment.ray.position = intersect + wi * 0.001f;
-    pathSegment.ray.diretion = wi;
+    pathSegment.ray.origin = intersect + wi * 0.001f;
+    pathSegment.ray.direction = wi;
     pathSegment.color *= m.color;
 }

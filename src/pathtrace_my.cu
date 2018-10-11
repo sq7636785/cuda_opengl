@@ -141,12 +141,12 @@ void generateRayFromCamera(Camera cam, int iter, int traceDepth, PathSegment* pa
         float yMov = u01(rng);
 
         PathSegment &tmp = pathSegments[index];
-        tmp.ray.position = cam.position;
+        tmp.ray.origin = cam.position;
         tmp.remainingBounces = traceDepth;
         tmp.pixelIndex = index;
         tmp.color = glm::vec3(1.0, 1.0, 1.0);
         // TODO: implement antialiasing by jittering the ray
-        tmp.ray.diretion = glm::normalize(cam.view - (static_cast<float>(x) + xMov -cam.resolution.x * 0.5f) * cam.pixelLength.x * cam.right
+        tmp.ray.direction = glm::normalize(cam.view - (static_cast<float>(x) + xMov -cam.resolution.x * 0.5f) * cam.pixelLength.x * cam.right
                                                    - (static_cast<float>(y) + yMov -cam.resolution.y * 0.5f) * cam.pixelLength.y * cam.up);
     }
 }

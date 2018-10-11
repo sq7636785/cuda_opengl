@@ -24,7 +24,7 @@ inline unsigned int utilhash(unsigned int a) {
 
 __host__ __device__
 glm::vec3 getPointOnRay(Ray r, float t) {
-    return r.position + (t) * glm::normalize(r.diretion);
+    return r.origin + (t) * glm::normalize(r.direction);
 }
 
 __host__ __device__
@@ -51,18 +51,18 @@ __host__ __device__
 float boxIntersectionTest(Geometry box, Ray r, glm::vec3 &intersectionPoint, glm::vec3 &normal, bool &outside) {
     
     Ray q;
-    q.position = multiplyMV(box.inverseTransform, glm::vec4(r.position, 1.0f));
-    q.diretion = glm::normalize(multiplyMV(box.inverseTransform, glm::vec4(r.diretion, 0.0f)));
+    q.origin = multiplyMV(box.inverseTransform, glm::vec4(r.origin, 1.0f));
+    q.direction = glm::normalize(multiplyMV(box.inverseTransform, glm::vec4(r.direction, 0.0f)));
 
     float tmin = -1e38f;
     float tmax = 1e38f;
     glm::vec3 tmin_n;
     glm::vec3 tmax_n;
     for (int xyz = 0; xyz < 3; ++xyz) {
-        float qdxyz = q.diretion[xyz];
+        float qdxyz = q.direction[xyz];
         /*if (glm::abs(qdxyz) > 0.00001f)*/ {
-            float t1 = (-0.5f - q.position[xyz]) / qdxyz;
-            float t2 = (+0.5f - q.position[xyz]) / qdxyz;
+            float t1 = (-0.5f - q.origin[xyz]) / qdxyz;
+            float t2 = (+0.5f - q.origin[xyz]) / qdxyz;
             float ta = glm::min(t1, t2);
             float tb = glm::max(t1, t2);
             glm::vec3 n;
@@ -87,7 +87,7 @@ float boxIntersectionTest(Geometry box, Ray r, glm::vec3 &intersectionPoint, glm
         }
         intersectionPoint = multiplyMV(box.transform, glm::vec4(getPointOnRay(q, tmin), 1.0f));
         normal = glm::normalize(multiplyMV(box.transform, glm::vec4(tmin_n, 0.0f)));
-        return glm::length(r.position - intersectionPoint);
+        return glm::length(r.origin - intersectionPoint);
     }
     return -1;
 }
@@ -107,15 +107,15 @@ __host__ __device__
 float sphereIntersectionTest(Geometry sphere, Ray r, glm::vec3 &intersectionPoint, glm::vec3 &normal, bool &outside) {
     float radius = .5;
 
-    glm::vec3 ro = multiplyMV(sphere.inverseTransform, glm::vec4(r.position, 1.0f));
-    glm::vec3 rd = glm::normalize(multiplyMV(sphere.inverseTransform, glm::vec4(r.diretion, 0.0f)));
+    glm::vec3 ro = multiplyMV(sphere.inverseTransform, glm::vec4(r.origin, 1.0f));
+    glm::vec3 rd = glm::normalize(multiplyMV(sphere.inverseTransform, glm::vec4(r.direction, 0.0f)));
 
     Ray rt;
-    rt.position = ro;
-    rt.diretion = rd;
+    rt.origin = ro;
+    rt.direction = rd;
 
-    float vDotdiretion = glm::dot(rt.position, rt.diretion);
-    float radicand = vDotdiretion * vDotdiretion - (glm::dot(rt.position, rt.position) - powf(radius, 2));
+    float vDotdiretion = glm::dot(rt.origin, rt.direction);
+    float radicand = vDotdiretion * vDotdiretion - (glm::dot(rt.origin, rt.origin) - powf(radius, 2));
     if (radicand < 0) {
         return -1;
     }
@@ -144,7 +144,7 @@ float sphereIntersectionTest(Geometry sphere, Ray r, glm::vec3 &intersectionPoin
         normal = -normal;
     }
 
-    return glm::length(r.position - intersectionPoint);
+    return glm::length(r.origin - intersectionPoint);
 
 }
 
@@ -153,20 +153,35 @@ __host__ __device__
 float meshIntersectionTest(Geometry mesh, Triangle* tris, Ray r, glm::vec3 &intersectionPoint, glm::vec3 &normal, bool &outside) {
     float tMin = FLT_MAX;
 
-    glm::vec3 hitPoint;
-    glm::vec3 hitNormal;
+    
+    int nearestTriIndex = -1;
+    glm::vec3 baryPosition(0.0f);
+    glm::vec3 minBaryPosition(0.0f);
     
     bool isHit;
     for (int i = mesh.startIndex; i < mesh.endIndex; ++i) {
-        float t = tris[i].intersect(r, hitPoint, hitNormal, mesh.transform, mesh.inverseTransform, isHit);
-        if (t > 0.0f) {
-            if (t < tMin) {
-                tMin = t;
-                intersectionPoint = hitPoint;
-                normal = hitNormal;
+        if (glm::intersectRayTriangle(r.origin, r.direction,
+            tris[i].vertices[0], tris[i].vertices[1], tris[i].vertices[2],
+            baryPosition)) {
+            // Only consider triangls in the ray direction
+            // no triangels back!
+            if (baryPosition.z > 0.f && baryPosition.z < tMin) {
+                tMin = baryPosition.z;
+                minBaryPosition = baryPosition;
+                nearestTriIndex = i;
             }
         }
     }
+    if (nearestTriIndex == -1) {
+        return -1;
+    }
+    Triangle nearestIntersectTri = tris[nearestTriIndex];
+    normal = nearestIntersectTri.normals[0] * (1.0f - minBaryPosition.x - minBaryPosition.y) +
+        nearestIntersectTri.normals[1] * minBaryPosition.x +
+        nearestIntersectTri.normals[2] * minBaryPosition.y;
+
+    normal = glm::normalize(normal);
+
     return tMin;
 }
 
