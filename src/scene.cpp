@@ -252,17 +252,51 @@ int Scene::loadObj(std::string objPath, Geometry &newGeom) {
         glm::mat4 transform = newGeom.transform;
         glm::mat4 invTranspose = newGeom.invTranspose;
 
+#ifdef ENABLE_MESHWORLDBOUND
+        newGeom.worldBoundIdx = worldBounds.size();
+        float min_x = FLT_MAX;
+        float min_y = FLT_MAX;
+        float min_z = FLT_MAX;
+
+        float max_x = FLT_MIN;
+        float max_y = FLT_MIN;
+        float max_z = FLT_MIN;
+#endif // ENABLE_MESHWORLDBOUND
+
+
         for (unsigned int i = 0; i < shapes.size(); i++) {
             std::vector<float> &positions = shapes[i].mesh.positions;
             std::vector<float> &normals = shapes[i].mesh.normals;
             std::vector<float> &uvs = shapes[i].mesh.texcoords;
             std::vector<unsigned int> &indices = shapes[i].mesh.indices;
             for (unsigned int j = 0; j < indices.size(); j += 3) {
+                glm::vec3 p1 = glm::vec3(transform * glm::vec4(positions[indices[j] * 3], positions[indices[j] * 3 + 1], positions[indices[j] * 3 + 2], 1));
+                glm::vec3 p2 = glm::vec3(transform * glm::vec4(positions[indices[j + 1] * 3], positions[indices[j + 1] * 3 + 1], positions[indices[j + 1] * 3 + 2], 1));
+                glm::vec3 p3 = glm::vec3(transform * glm::vec4(positions[indices[j + 2] * 3], positions[indices[j + 2] * 3 + 1], positions[indices[j + 2] * 3 + 2], 1));
+
                 Triangle t;
                 t.index = tri_index++;
-                t.vertices[0] = glm::vec3(transform * glm::vec4(positions[indices[j] * 3], positions[indices[j] * 3 + 1], positions[indices[j] * 3 + 2], 1));
-                t.vertices[1] = glm::vec3(transform * glm::vec4(positions[indices[j + 1] * 3], positions[indices[j + 1] * 3 + 1], positions[indices[j + 1] * 3 + 2], 1));
-                t.vertices[2] = glm::vec3(transform * glm::vec4(positions[indices[j + 2] * 3], positions[indices[j + 2] * 3 + 1], positions[indices[j + 2] * 3 + 2], 1));
+                t.vertices[0] = p1;
+                t.vertices[1] = p2;
+                t.vertices[2] = p3;
+
+#ifdef ENABLE_MESHWORLDBOUND
+                float min_x_temp = glm::min(p1.x, glm::min(p2.x, p3.x));
+                float min_y_temp = glm::min(p1.y, glm::min(p2.y, p3.y));
+                float min_z_temp = glm::min(p1.z, glm::min(p2.z, p3.z));
+
+                float max_x_temp = glm::max(p1.x, glm::max(p2.x, p3.x));
+                float max_y_temp = glm::max(p1.y, glm::max(p2.y, p3.y));
+                float max_z_temp = glm::max(p1.z, glm::max(p2.z, p3.z));
+
+                min_x = min_x < min_x_temp ? min_x : min_x_temp;
+                min_y = min_y < min_y_temp ? min_y : min_y_temp;
+                min_z = min_z < min_z_temp ? min_z : min_z_temp;
+                max_x = max_x > max_x_temp ? max_x : max_x_temp;
+                max_y = max_y > max_y_temp ? max_y : max_y_temp;
+                max_z = max_z > max_z_temp ? max_z : max_z_temp;
+#endif
+
 
                 if (normals.size() > 0) {
                     t.normals[0] = glm::vec3(invTranspose * glm::vec4(normals[indices[j] * 3], normals[indices[j] * 3 + 1], normals[indices[j] * 3 + 2], 0));
@@ -272,7 +306,10 @@ int Scene::loadObj(std::string objPath, Geometry &newGeom) {
                 triangles.push_back(t);
             }
         }
-        newGeom.endIndex = tri_index;
+        newGeom.endIndex = triangles.size();
+#ifdef ENABLE_MESHWORLDBOUND
+        worldBounds.push_back(Bounds3f(glm::vec3(min_x, min_y, min_z), glm::vec3(max_x, max_y, max_z)));
+#endif
         return 1;
     } else {
         std::cout << errors << std::endl;

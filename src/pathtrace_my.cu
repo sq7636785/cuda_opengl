@@ -81,6 +81,12 @@ static PathSegment*             dev_paths = NULL;
 static ShadeableIntersection*   dev_intersection = NULL;
 static Triangle*                dev_tris = NULL;
 
+static int                      worldBoundsSize = 0;
+
+#ifdef ENABLE_MESHWORLDBOUND
+static Bounds3f* dev_worldBounds = NULL;
+#endif
+
 void pathTraceInit(Scene* scene) {
     hst_scene = scene;
     const Camera& cam = hst_scene->state.camera;
@@ -103,6 +109,15 @@ void pathTraceInit(Scene* scene) {
     cudaMalloc(&dev_tris, hst_scene->triangles.size() * sizeof(Triangle));
     cudaMemcpy(dev_tris, hst_scene->triangles.data(), hst_scene->triangles.size() * sizeof(Triangle), cudaMemcpyHostToDevice);
 
+#ifdef ENABLE_MESHWORLDBOUND
+    worldBoundsSize = scene->worldBounds.size();
+    if (worldBoundsSize > 0) {
+        // World bounds of mesh
+        cudaMalloc(&dev_worldBounds, worldBoundsSize * sizeof(Bounds3f));
+        cudaMemcpy(dev_worldBounds, scene->worldBounds.data(), worldBoundsSize * sizeof(Bounds3f), cudaMemcpyHostToDevice);
+    }
+#endif
+
     checkCUDAError("pathTraceInit");
 }
 
@@ -114,6 +129,11 @@ void pathTraceFree() {
     cudaFree(dev_intersection);
     cudaFree(dev_paths);
     cudaFree(dev_tris);
+#ifdef ENABLE_MESHWORLDBOUND
+    if (worldBoundsSize > 0) {
+        cudaFree(dev_worldBounds);
+    }
+#endif
     checkCUDAError("pathTraceFree");
 }
 
@@ -164,7 +184,11 @@ void computeIntersection(
     Geometry* geoms, 
     int geoms_size, 
     ShadeableIntersection *intersections,
-    Triangle* tris) {
+    Triangle* tris,
+#ifdef ENABLE_MESHWORLDBOUND
+    Bounds3f *worldBounds
+#endif
+    ) {
     
     int index = blockDim.x * blockIdx.x + threadIdx.x;
     if (index < num_paths) {
@@ -186,7 +210,14 @@ void computeIntersection(
             } else if (geoms[i].type == GeomType::CUBE) {
                 t = boxIntersectionTest(geoms[i], unit.ray, intersectPoint, normal, outside);
             } else if (geoms[i].type == GeomType::MESH) {
+#ifdef ENABLE_MESHWORLDBOUND
+                float tmp_t;
+                if (worldBounds[geoms[i].worldBoundIdx].Intersect(unit.ray, &tmp_t)) {
+                    t = meshIntersectionTest(geoms[i], tris, unit.ray, intersectPoint, normal, outside);
+                }
+#else
                 t = meshIntersectionTest(geoms[i], tris, unit.ray, intersectPoint, normal, outside);
+#endif
             }
             //TODO:  more geometry type
             
@@ -340,6 +371,9 @@ void pathTrace(uchar4* pbo, int frame, int iter) {
             hst_scene->geometrys.size(),
             dev_intersection,
             dev_tris
+#ifdef ENABLE_MESHWORLDBOUND
+            ,dev_worldBounds
+#endif
             );
         checkCUDAError("compute intersection");
 

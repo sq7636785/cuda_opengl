@@ -69,7 +69,7 @@ public:
 			p.z >= min.z && p.z <= max.z);
 	}
 
-	__host__ __device__ bool Intersect(const Ray &r, float* t) const
+	__host__ __device__ bool Intersect(Ray &r, float* t) const
 	{
 		Ray r_loc = r;
 

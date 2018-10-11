@@ -10,6 +10,8 @@
 #include "utilities.h"
 #include "data_structure.h"
 
+#define ENABLE_MESHWORLDBOUND
+
 class Scene {
   private:
       std::ifstream fp_in;
@@ -26,6 +28,7 @@ class Scene {
       std::vector<Geometry> geometrys;
       std::vector<Material> materials;
       std::vector<Triangle> triangles;
+      std::vector<Bounds3f> worldBounds;
       RenderState           state;
 };
 

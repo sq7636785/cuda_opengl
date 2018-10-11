@@ -6,6 +6,7 @@
 #include <cuda_runtime.h>
 #include "glm/glm.hpp"
 #include "glm/gtx/intersect.hpp"
+#include "bounds.h"
 
 enum GeomType {
     SPHERE,
@@ -13,10 +14,6 @@ enum GeomType {
     MESH
 };
 
-struct Ray {
-    glm::vec3 origin; 
-    glm::vec3 direction;
-};
 
 struct Geometry {
     enum GeomType   type;
@@ -30,6 +27,7 @@ struct Geometry {
 
     int             startIndex;
     int             endIndex;
+    int             worldBoundIdx;
 };
 
 struct Material {
@@ -96,6 +94,43 @@ struct Triangle {
     glm::vec3 vertices[3];
     glm::vec3 normals[3];
     glm::vec2 uvs[3];
+
+
+    __host__ __device__
+        Bounds3f worldBounds() {
+        float minX = glm::min(vertices[0].x, glm::min(vertices[1].x, vertices[2].x));
+        float minY = glm::min(vertices[0].y, glm::min(vertices[1].y, vertices[2].y));
+        float minZ = glm::min(vertices[0].z, glm::min(vertices[1].z, vertices[2].z));
+
+        float maxX = glm::max(vertices[0].x, glm::max(vertices[1].x, vertices[2].x));
+        float maxY = glm::max(vertices[0].y, glm::max(vertices[1].y, vertices[2].y));
+        float maxZ = glm::max(vertices[0].z, glm::max(vertices[1].z, vertices[2].z));
+
+
+        if (minX == maxX) {
+            minX -= 0.01f;
+            maxX += 0.01f;
+        }
+
+        if (minY == maxY) {
+            minY -= 0.01f;
+            maxY += 0.01f;
+        }
+
+        if (minZ == maxZ) {
+            minZ -= 0.01f;
+            maxZ += 0.01f;
+        }
+
+
+        return Bounds3f(glm::vec3(minX, minY, minZ),
+            glm::vec3(maxX, maxY, maxZ));
+    }
+
+    __host__ __device__
+        float surfaceArea() {
+        return glm::length(glm::cross(vertices[0] - vertices[1], vertices[2] - vertices[1])) * 0.5f;
+    }
 
     __host__ __device__
         float intersect(const Ray &r, glm::vec3 &intersectPoint, glm::vec3 &normal, glm::mat4 &transform, glm::mat4 &invTransform, bool &outside) const {
