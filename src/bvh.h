@@ -38,7 +38,7 @@ struct BVHBuildNode {
     }
 };
 
-struct LinerBVHNode {
+struct LinearBVHNode {
     Bounds3f bounds;
     union  {
         int primitivesOffeset;  // leaf
@@ -56,8 +56,8 @@ struct BucketInfo {
 };
 
 
-LinerBVHNode*   ConstructBVHAccel(int &totalNodes, std::vector<Triangle>& primitives, int maxPrimsInNode = 1);
-void            DeconstructBVHAccel(LinerBVHNode* bvhNodes);
+LinearBVHNode*   ConstructBVHAccel(int &totalNodes, std::vector<Triangle>& primitives, int maxPrimsInNode = 1);
+void            DeconstructBVHAccel(LinearBVHNode* bvhNodes);
 
 
 

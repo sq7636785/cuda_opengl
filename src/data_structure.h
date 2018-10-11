@@ -132,31 +132,26 @@ struct Triangle {
         return glm::length(glm::cross(vertices[0] - vertices[1], vertices[2] - vertices[1])) * 0.5f;
     }
 
-    __host__ __device__
-        float intersect(const Ray &r, glm::vec3 &intersectPoint, glm::vec3 &normal, glm::mat4 &transform, glm::mat4 &invTransform, bool &outside) const {
-        glm::vec3 baryPosition(0.0f);
-        Ray ray;
-        ray.origin = glm::vec3(invTransform * glm::vec4(r.origin, 1.0f));
-        ray.direction = glm::normalize(glm::vec3(invTransform * glm::vec4(r.direction, 0.0f)));
+    __host__ __device__ bool Intersect(const Ray& r, ShadeableIntersection* isect) const {
 
-        float t = 0.0f;
-        if (glm::intersectRayTriangle(ray.origin, ray.direction, vertices[0], vertices[1], vertices[2], baryPosition)) {
-            
-            normal = normals[0] * (1.0f - baryPosition.x - baryPosition.y) +
-                normals[1] * baryPosition.x + normals[2] * baryPosition.y;
-            normal = glm::normalize(normal);
-            intersectPoint = r.origin + baryPosition.z * glm::normalize(r.direction);
-            intersectPoint = glm::vec3(transform * glm::vec4(intersectPoint, 1.0f));
-            normal = glm::vec3(transform * glm::vec4(normal, 0.0f));
+        glm::vec3 baryPosition(0.f);
 
-            outside = false;
-            t = baryPosition.z;
+        if (glm::intersectRayTriangle(r.origin, r.direction,
+            vertices[0], vertices[1], vertices[2],
+            baryPosition)) {
+
+            // Material ID should be set on the Geom level
+            isect->t = baryPosition.z;
+            isect->surfaceNormal = normals[0] * (1.0f - baryPosition.x - baryPosition.y) +
+                normals[1] * baryPosition.x +
+                normals[2] * baryPosition.y;
+            isect->surfaceNormal = glm::normalize(isect->surfaceNormal);
+
+            return true;
         } else {
-            outside = true;
-            t = -1.0f;
+            isect->t = -1.0f;
+            return false;
         }
-        return t;
-            
     }
 };
 

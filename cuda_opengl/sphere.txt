@@ -25,5 +25,5 @@ mesh
 material 0
 TRANS       0 0 0
 ROTAT       0 0 0
-SCALE       0.01 0.01 0.01
-OBJ_PATH    desk.obj
+SCALE       0.3 0.3 0.3
+OBJ_PATH    bunny.obj

@@ -3,6 +3,7 @@
 
 #include "glm/gtc/matrix_inverse.hpp"
 #include "glm/gtx/string_cast.hpp"
+#include "GLFW/glfw3.h"
 #include "scene.h"
 
 #include "tiny_obj_loader.h"
@@ -34,6 +35,18 @@ Scene::Scene(const std::string &fileName) {
             }
         }
     }
+    fp_in.close();
+
+#ifdef ENABLE_BVH
+    double startTime = glfwGetTime();
+    bvhTotalNodes = 0;
+    int maxPrimitivesInNode = 5;
+    bvhNodes = ConstructBVHAccel(bvhTotalNodes, triangles, maxPrimitivesInNode);
+    std::cout << "Total Time to Construct BVH tree: " << glfwGetTime() - startTime << std::endl;
+    std::cout << "BVH has " << bvhTotalNodes << " nodes" << std::endl;
+
+#endif
+
 }
 
 

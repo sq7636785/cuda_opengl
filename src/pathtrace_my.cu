@@ -81,10 +81,16 @@ static PathSegment*             dev_paths = NULL;
 static ShadeableIntersection*   dev_intersection = NULL;
 static Triangle*                dev_tris = NULL;
 
-static int                      worldBoundsSize = 0;
+
 
 #ifdef ENABLE_MESHWORLDBOUND
-static Bounds3f* dev_worldBounds = NULL;
+static int                      worldBoundsSize = 0;
+static Bounds3f*                dev_worldBounds = NULL;
+#endif
+
+#ifdef ENABLE_BVH
+static int                      bvhNodesSize = 0;
+static LinearBVHNode*           dev_bvhNodes = NULL;
 #endif
 
 void pathTraceInit(Scene* scene) {
@@ -118,6 +124,14 @@ void pathTraceInit(Scene* scene) {
     }
 #endif
 
+#ifdef ENABLE_BVH
+    bvhNodesSize = hst_scene->bvhTotalNodes;
+    if (bvhNodesSize > 0) {
+        cudaMalloc(&dev_bvhNodes, bvhNodesSize * sizeof(LinearBVHNode));
+        cudaMemcpy(dev_bvhNodes, hst_scene->bvhNodes, bvhNodesSize * sizeof(LinearBVHNode), cudaMemcpyHostToDevice);
+    }
+#endif
+
     checkCUDAError("pathTraceInit");
 }
 
@@ -132,6 +146,12 @@ void pathTraceFree() {
 #ifdef ENABLE_MESHWORLDBOUND
     if (worldBoundsSize > 0) {
         cudaFree(dev_worldBounds);
+    }
+#endif
+
+#ifdef ENABLE_BVH
+    if (bvhNodesSize > 0) {
+        cudaFree(dev_bvhNodes);
     }
 #endif
     checkCUDAError("pathTraceFree");
@@ -184,9 +204,12 @@ void computeIntersection(
     Geometry* geoms, 
     int geoms_size, 
     ShadeableIntersection *intersections,
-    Triangle* tris,
+    Triangle* tris
 #ifdef ENABLE_MESHWORLDBOUND
-    Bounds3f *worldBounds
+    ,Bounds3f *worldBounds
+#endif
+#ifdef ENABLE_BVH
+    ,LinearBVHNode* bvhNodes
 #endif
     ) {
     
@@ -194,27 +217,43 @@ void computeIntersection(
     if (index < num_paths) {
         //final para
         float tMin = 10000.0f;
-        glm::vec3 tNormal;
+        glm::vec3 normal;
         int geomsId = -1;
         PathSegment &unit = pathSegments[index];
         ShadeableIntersection &si = intersections[index];
         //tmp para
         bool outside = true;
-        glm::vec3 intersectPoint;
-        glm::vec3 normal;
+        glm::vec3 tmpIntersectPoint;
+        glm::vec3 tmpNormal;
         float t;
 
+        int hitTriIdx = -1;
         for (int i = 0; i < geoms_size; ++i) {
             if (geoms[i].type == GeomType::SPHERE) {
-                t = sphereIntersectionTest(geoms[i], unit.ray, intersectPoint, normal, outside);
+                t = sphereIntersectionTest(geoms[i], unit.ray, tmpIntersectPoint, tmpNormal, outside);
             } else if (geoms[i].type == GeomType::CUBE) {
-                t = boxIntersectionTest(geoms[i], unit.ray, intersectPoint, normal, outside);
+                t = boxIntersectionTest(geoms[i], unit.ray, tmpIntersectPoint, tmpNormal, outside);
             } else if (geoms[i].type == GeomType::MESH) {
 #ifdef ENABLE_MESHWORLDBOUND
+#ifdef ENABLE_BVH
+                ShadeableIntersection tmpIsect;
+                tmpIsect.t = FLT_MAX;
+                if (intersectBVH(unit.ray, &tmpIsect, hitTriIdx, bvhNodes, tris)) {
+                    if (hitTriIdx >= geoms[i].startIndex && hitTriIdx < geoms[i].endIndex) {
+                        t = tmpIsect.t;
+                        tmpNormal = tmpIsect.surfaceNormal;
+                    } else {
+                        t = -1.0f;
+                    }
+                } else {
+                    t = -1.0f;
+                }
+#else
                 float tmp_t;
                 if (worldBounds[geoms[i].worldBoundIdx].Intersect(unit.ray, &tmp_t)) {
-                    t = meshIntersectionTest(geoms[i], tris, unit.ray, intersectPoint, normal, outside);
+                    t = meshIntersectionTest(geoms[i], tris, unit.ray, tmpIntersectPoint, normal, outside);
                 }
+#endif
 #else
                 t = meshIntersectionTest(geoms[i], tris, unit.ray, intersectPoint, normal, outside);
 #endif
@@ -223,13 +262,13 @@ void computeIntersection(
             
             if (t < tMin && t > 0) {
                 tMin = t;
-                tNormal = normal;
+                normal = tmpNormal;
                 geomsId = i;
             }
         }
         if (tMin > 0 && geomsId != -1) {
             si.materialId = geoms[geomsId].materialID;
-            si.surfaceNormal = tNormal;
+            si.surfaceNormal = normal;
             si.t = tMin;
         } else {
             si.t = -1.0f;
@@ -373,6 +412,9 @@ void pathTrace(uchar4* pbo, int frame, int iter) {
             dev_tris
 #ifdef ENABLE_MESHWORLDBOUND
             ,dev_worldBounds
+#endif
+#ifdef ENABLE_BVH
+            ,dev_bvhNodes
 #endif
             );
         checkCUDAError("compute intersection");

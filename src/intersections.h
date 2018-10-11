@@ -185,4 +185,88 @@ float meshIntersectionTest(Geometry mesh, Triangle* tris, Ray r, glm::vec3 &inte
     return tMin;
 }
 
+
+
+#define MAX_BVH_INTERIOR_LEVEL 64
+
+__host__ __device__
+bool intersectBVH(const Ray& ray, ShadeableIntersection* isect, int& hitTriIdx, const LinearBVHNode* bvhNodes, const Triangle* primitives) {
+    if (!bvhNodes) {
+        return false;
+    }
+
+    bool hit = false;
+    glm::vec3 invDir(1.0f / ray.direction.x, 1.0f / ray.direction.y, 1.0f / ray.direction.z);
+    int dirIsNeg[3] = { invDir.x < 0.0f, invDir.y < 0.0f, invDir.z < 0.0f };
+
+    // Follow ray through BVH nodes to find primitive intersections
+    int toVisitOffeset = 0;
+    int currentNodeIndex = 0;
+    int nodeToVisit[MAX_BVH_INTERIOR_LEVEL];
+
+    while (true) {
+        const LinearBVHNode *node = &bvhNodes[currentNodeIndex];
+
+        //check ray against BVH node
+        //ray is intersect with the BVH root node
+
+        float tmpT;
+        bool nodeIsect = (currentNodeIndex == 0) ? node->bounds.Intersect(ray, &tmpT) : true;
+
+        if (node->bounds.IntersectP(ray, invDir, dirIsNeg)) {
+            if (node->nPrimitives > 0) {
+                //leaf node
+                for (int i = 0; i < node->nPrimitives; ++i) {
+                    ShadeableIntersection tmpIsect;
+                    if (primitives[node->primitivesOffeset + i].Intersect(ray, &tmpIsect)) {
+                        hit = true;
+                        if (isect->t == -1.0f) {
+                            hitTriIdx = primitives[node->primitivesOffeset + i].index;
+                            (*isect) = tmpIsect;
+                        } else {
+                            if (tmpIsect.t < isect->t) {
+                                (*isect) = tmpIsect;
+                                hitTriIdx = primitives[node->primitivesOffeset + i].index;
+                            }
+                        }
+                    }
+                }
+                if (toVisitOffeset == 0) {
+                    break;
+                }
+                currentNodeIndex = nodeToVisit[--toVisitOffeset];
+            } else {
+                //interior node
+
+                // ----------- Depth control ---------------
+                // if toVisitOffset reaches maximum
+                // we don't want add more index to nodesToVisit Array
+                // we just give up this interior node and handle previous nodes instead 
+                if (toVisitOffeset == MAX_BVH_INTERIOR_LEVEL) {
+                    currentNodeIndex = nodeToVisit[--toVisitOffeset];
+                    continue;
+                }
+
+                //the travel order
+                if (dirIsNeg[node->axis]) {
+                    nodeToVisit[toVisitOffeset++] = currentNodeIndex + 1;
+                    currentNodeIndex = node->secondChildOffset;
+                } else {
+                    nodeToVisit[toVisitOffeset++] = node->secondChildOffset;
+                    currentNodeIndex = currentNodeIndex + 1;
+                }
+            }
+        } else {
+            //hit nothing
+            if (toVisitOffeset == 0) {
+                break;
+            } else {
+                currentNodeIndex = nodeToVisit[--toVisitOffeset];
+            }
+        }
+    }
+    return hit;
+}
+
+
 #endif // !INTERSECTION_H

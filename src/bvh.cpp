@@ -35,7 +35,7 @@ BVHBuildNode* recursiveBuild(std::vector<BVHPrimitiveInfo>& primitiveInfo,
         }
         int dim = centroidBounds.MaximumExtent();
 
-        float mid = static_cast<float>(start)+static_cast<float>(end)* 0.5f;
+        int mid = static_cast<int>((static_cast<float>(start)+static_cast<float>(end))* 0.5f);
         if (centroidBounds.max[dim] == centroidBounds.min[dim]) {
             //creat leaf BVHBuildNode, the max axis equal, if means the bounds is a point.
             int firstPrimOffest = orderedPrims.size();
@@ -54,6 +54,7 @@ BVHBuildNode* recursiveBuild(std::vector<BVHPrimitiveInfo>& primitiveInfo,
 
             //if (nPrimitives <= 4) {
                 //partitation primitives into equally sized subsets
+
                 std::nth_element(&primitiveInfo[start], &primitiveInfo[static_cast<int>(mid)], &primitiveInfo[end - 1] + 1,
                     [dim](const BVHPrimitiveInfo& a, const BVHPrimitiveInfo& b) {
                     return a.centroid[dim] < b.centroid[dim];
@@ -70,8 +71,8 @@ BVHBuildNode* recursiveBuild(std::vector<BVHPrimitiveInfo>& primitiveInfo,
 
 
 
-int flattenBVHTree(BVHBuildNode *node, int *offset, LinerBVHNode *bvhNodes) {
-    LinerBVHNode *linearNode = &bvhNodes[*offset];
+int flattenBVHTree(BVHBuildNode *node, int *offset, LinearBVHNode *bvhNodes) {
+    LinearBVHNode *linearNode = &bvhNodes[*offset];
     linearNode->bounds = node->bounds;
     int myOffset = (*offset)++;
     if (node->nPrimitives > 0) {
@@ -102,7 +103,7 @@ void deleteBuildNode(BVHBuildNode *root) {
 }
 
 
-LinerBVHNode* ConstructBVHAccel(int& totalNodes, std::vector<Triangle>& primitives, int maxPrimsInNode) {
+LinearBVHNode* ConstructBVHAccel(int& totalNodes, std::vector<Triangle>& primitives, int maxPrimsInNode) {
     g_maxPrimsInNode = glm::min(maxPrimsInNode, 255);
 
     size_t primitivesSize = primitives.size();
@@ -118,14 +119,16 @@ LinerBVHNode* ConstructBVHAccel(int& totalNodes, std::vector<Triangle>& primitiv
 
     //2.build BVH tree for primitives using primitiveInfo
     totalNodes = 0;
-    std::vector<Triangle> orderedPrims(primitivesSize);
+    std::vector<Triangle> orderedPrims;
+    orderedPrims.reserve(totalNodes);
+
     
     BVHBuildNode *root;
     root = recursiveBuild(primitiveInfo, 0, primitivesSize, totalNodes, orderedPrims, primitives);
     primitives.swap(orderedPrims);
 
     //3.compute representation of depth-first traversal of BVH tree
-    LinerBVHNode* bvhNodes = new LinerBVHNode[totalNodes];
+    LinearBVHNode* bvhNodes = new LinearBVHNode[totalNodes];
     int offset = 0;
     flattenBVHTree(root, &offset, bvhNodes);
 

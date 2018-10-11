@@ -10,7 +10,11 @@
 #include "utilities.h"
 #include "data_structure.h"
 
+#include "bvh.h"
+
 #define ENABLE_MESHWORLDBOUND
+
+#define ENABLE_BVH
 
 class Scene {
   private:
@@ -30,6 +34,11 @@ class Scene {
       std::vector<Triangle> triangles;
       std::vector<Bounds3f> worldBounds;
       RenderState           state;
+
+#ifdef ENABLE_BVH
+      LinearBVHNode*         bvhNodes;
+      int                   bvhTotalNodes;
+#endif
 };
 
 #endif
