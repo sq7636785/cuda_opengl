@@ -42,6 +42,12 @@
     <ClInclude Include="..\src\interactions.h">
       <Filter>Header</Filter>
     </ClInclude>
+    <ClInclude Include="..\src\bounds.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\bvh.h">
+      <Filter>Header</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\src\image.cpp">
@@ -63,6 +69,12 @@
       <Filter>Sources</Filter>
     </ClCompile>
     <ClCompile Include="..\external\include\tiny_obj_loader.cc" />
+    <ClCompile Include="..\src\bounds.cpp">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\bvh.cpp">
+      <Filter>Sources</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <CudaCompile Include="..\src\pathtrace_my.cu">

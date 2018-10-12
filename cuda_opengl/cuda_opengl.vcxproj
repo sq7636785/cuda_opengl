@@ -19,6 +19,8 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\src\bounds.h" />
+    <ClInclude Include="..\src\bvh.h" />
     <ClInclude Include="..\src\cutil_math.h" />
     <ClInclude Include="..\src\data_structure.h" />
     <ClInclude Include="..\src\glslUtility.h" />
@@ -33,6 +35,8 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\external\include\tiny_obj_loader.cc" />
+    <ClCompile Include="..\src\bounds.cpp" />
+    <ClCompile Include="..\src\bvh.cpp" />
     <ClCompile Include="..\src\glslUtility.cpp" />
     <ClCompile Include="..\src\image.cpp" />
     <ClCompile Include="..\src\main.cpp" />

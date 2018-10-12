@@ -206,3 +206,6 @@ LinearBVHNode* ConstructBVHAccel(int& totalNodes, std::vector<Triangle>& primiti
 }
 
 
+void DeconstructBVHAccel(LinearBVHNode* bvhNodes) {
+    delete[] bvhNodes;
+}

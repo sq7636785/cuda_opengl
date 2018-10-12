@@ -37,7 +37,7 @@ class Scene {
 
 #ifdef ENABLE_BVH
       LinearBVHNode*         bvhNodes;
-      int                   bvhTotalNodes;
+      int                    bvhTotalNodes;
 #endif
 };
 

@@ -198,7 +198,6 @@ void generateRayFromCamera(Camera cam, int iter, int traceDepth, PathSegment* pa
 // Feel free to modify the code below.
 __global__
 void computeIntersection(
-    int depth, 
     int num_paths, 
     PathSegment* pathSegments, 
     Geometry* geoms, 
@@ -270,6 +269,7 @@ void computeIntersection(
             si.materialId = geoms[geomsId].materialID;
             si.surfaceNormal = normal;
             si.t = tMin;
+            si.hitGeomId = geomsId;
         } else {
             si.t = -1.0f;
         }
@@ -320,7 +320,21 @@ void shadeFakeMaterial(
 
 
 __global__
-void shadeMaterial(int dp, int iter, int num_paths, ShadeableIntersection* intersections, PathSegment* pathSegments, Material* materials) {
+void shadeMaterial(
+      int iter
+    , int num_paths
+    , ShadeableIntersection* intersections
+    , PathSegment* pathSegments
+    , Material* materials
+    , Geometry* geoms
+    , Triangle* tris
+#ifdef ENABLE_MESHWORLDBOUND
+    , Bounds3f* worldBounds
+#endif
+#ifdef ENABLE_BVH
+    , LinearBVHNode* bvhNodes
+#endif
+    ) {
     int index = blockDim.x * blockIdx.x + threadIdx.x;
 
     if (index < num_paths) {
@@ -339,7 +353,22 @@ void shadeMaterial(int dp, int iter, int num_paths, ShadeableIntersection* inter
                     //这里参数的最后一个不能是0,不然会出bug
                     thrust::default_random_engine rng = makeSeededRandomEngine(iter, index, pathSegment.remainingBounces);
                     glm::vec3 intersectPoint = getPointOnRay(pathSegment.ray, intersect.t);
-                    scatterRay(pathSegment, intersectPoint, intersect.surfaceNormal, material, rng);
+                    scatterRay(
+                        pathSegment
+                      , intersectPoint
+                      , intersect.surfaceNormal
+                      , material
+                      , geoms
+                      , tris
+#ifdef ENABLE_MESHWORLDBOUND
+                      , worldBounds
+#endif
+#ifdef ENABLE_BVH
+                      , bvhNodes
+#endif
+                      , intersect.hitGeomId
+                      , rng);
+                    pathSegment.remainingBounces--;
                 }
             } else {
                 pathSegment.color = glm::vec3(0.0f);
@@ -403,7 +432,6 @@ void pathTrace(uchar4* pbo, int frame, int iter) {
 
         dim3 numBlockPathSegmentTracing = (num_paths + blockSize1d - 1) / blockSize1d;
         computeIntersection << <numBlockPathSegmentTracing, blockSize1d >> >(
-            depth,
             num_paths,
             dev_paths,
             dev_geometry,
@@ -432,12 +460,19 @@ void pathTrace(uchar4* pbo, int frame, int iter) {
         // TODO: compare between directly shading the path segments and shading
         // path segments that have been reshuffled to be contiguous in memory.
         shadeMaterial << <numBlockPathSegmentTracing, blockSize1d >> >(
-            depth,
             iter,
             num_paths,
             dev_intersection,
             dev_paths,
-            dev_material
+            dev_material,
+            dev_geometry,
+            dev_tris
+#ifdef ENABLE_MESHWORLDBOUND
+           ,dev_worldBounds
+#endif
+#ifdef ENABLE_BVH
+           ,dev_bvhNodes
+#endif
             );
 
         iterationComplete++;// TODO: should be based off stream compaction results.

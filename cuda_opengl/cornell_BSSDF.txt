@@ -38,46 +38,35 @@ REFR        0
 REFRIOR     0
 EMITTANCE   0
 
-// Diffuse blue
+// test bssdf material(project hard-code)
 MATERIAL 4
-RGB         .35 .35 .85
+RGB         0 0 0
 SPECEX      0
-SPECRGB     0 0 0
-REFL        0
-REFR        0
-REFRIOR     0
+SPECRGB     0.98 0.98 0.98
+REFL        0.2
+REFR        0.8
+REFRIOR     1.5
 EMITTANCE   0
-BSSDF	TRUE
+BSSDF	    TRUE
 
-// Specular white
+// compare pure refractive material
 MATERIAL 5
 RGB         .98 .98 .98
 SPECEX      0
-SPECRGB     .53 .27 .98
+SPECRGB     .85 .35 .35
 REFL        0
 REFR        1
 REFRIOR     1.5
-EMITTANCE   0
-BSSDF TRUE
-
-// Specular white
-MATERIAL 6
-RGB         .98 .98 .98
-SPECEX      0
-SPECRGB     .98 .98 .98
-REFL        1
-REFR        0
-REFRIOR     0
 EMITTANCE   0
 
 // Camera
 CAMERA
 RES         800 800
 FOVY        45
-ITERATIONS  1000
+ITERATIONS  5000
 DEPTH       8
-FILE        cornell
-EYE         0.0 5 10.5
+FILE        cornell_BSSDF
+EYE         0 5 10.5
 LOOKAT      0 5 0
 UP          0 1 0
 
@@ -86,9 +75,9 @@ UP          0 1 0
 OBJECT 0
 cube
 material 0
-TRANS       0 10 0
+TRANS       0 5.8 0
 ROTAT       0 0 0
-SCALE       3 .3 3
+SCALE       4 .3 4
 
 // Floor
 OBJECT 1
@@ -130,19 +119,10 @@ TRANS       5 5 0
 ROTAT       0 0 0
 SCALE       .01 10 10
 
-// Sphere 1 - Diffuse 
-//OBJECT 6
-//sphere
-//material 6
-//TRANS       -2.5 3 4 
-//ROTAT       0 0 0
-//SCALE       3 3 3
-
-// Test Mesh
+// cube
 OBJECT 6
-mesh
-material 5
-TRANS       -0.3 3 2
-ROTAT       0 35 15
-SCALE       0.007 0.007 0.007
-OBJ_PATH	 desk.obj
+cube
+material 4
+TRANS       0 3.5 0
+ROTAT       0 0 0
+SCALE       4 4 4

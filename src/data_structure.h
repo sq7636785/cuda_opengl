@@ -41,6 +41,7 @@ struct Material {
     float           hasRefractive;
     float           indexOfRefraction;
     float           emittance;
+    bool            isBssdf;
 };
 
 

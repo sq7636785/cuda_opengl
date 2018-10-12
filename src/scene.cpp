@@ -49,6 +49,12 @@ Scene::Scene(const std::string &fileName) {
 
 }
 
+Scene::~Scene() {
+#ifdef ENABLE_BVH
+    DeconstructBVHAccel(bvhNodes);
+#endif
+}
+
 
 int Scene::loadGeometry(std::string fileName) {
     int id = atoi(fileName.c_str());
@@ -127,10 +133,9 @@ int Scene::loadMaterial(std::string fileName) {
     } else {
         std::cout << "Load Material " << id << "..." << std::endl;
         Material newMaterial;
-
+        std::string line;
         //load static properties
         for (int i = 0; i < 7; ++i) {
-            std::string line;
             utilityCore::safeGetline(fp_in, line);
             std::vector<std::string> tokens = utilityCore::tokenizeString(line);
 
@@ -152,6 +157,18 @@ int Scene::loadMaterial(std::string fileName) {
                 newMaterial.emittance = atof(tokens[1].c_str());
             }
         } 
+
+        newMaterial.isBssdf = false;
+        utilityCore::safeGetline(fp_in, line);
+        if (!line.empty() && fp_in.good()) {
+            std::vector<std::string> tokens = utilityCore::tokenizeString(line);
+            if (strcmp(tokens[0].c_str(), "BSSDF") == 0) {
+                if (strcmp(tokens[1].c_str(), "TRUE") == 0) {
+                    newMaterial.isBssdf = true;
+                }
+            }
+        }
+
         materials.push_back(newMaterial);
         return 1;
     }

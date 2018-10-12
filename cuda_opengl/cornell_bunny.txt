@@ -54,9 +54,10 @@ RGB         .98 .98 .98
 SPECEX      0
 SPECRGB     .87 .27 .98
 REFL        0
-REFR        1
+REFR        0
 REFRIOR     1.5
 EMITTANCE   0
+//BSSDF	TRUE
 
 // Specular white
 MATERIAL 6
