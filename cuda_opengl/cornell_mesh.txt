@@ -54,7 +54,7 @@ MATERIAL 5
 RGB         .98 .98 .98
 SPECEX      0
 SPECRGB     .53 .27 .98
-REFL        0
+REFL        1
 REFR        1
 REFRIOR     1.5
 EMITTANCE   0

@@ -142,17 +142,24 @@ struct Triangle {
             baryPosition)) {
 
             // Material ID should be set on the Geom level
+
             isect->t = baryPosition.z;
+
             isect->surfaceNormal = normals[0] * (1.0f - baryPosition.x - baryPosition.y) +
                 normals[1] * baryPosition.x +
                 normals[2] * baryPosition.y;
+
             isect->surfaceNormal = glm::normalize(isect->surfaceNormal);
 
+
             return true;
-        } else {
+        }
+
+        else {
             isect->t = -1.0f;
             return false;
         }
+
     }
 };
 

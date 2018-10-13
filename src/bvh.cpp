@@ -14,7 +14,7 @@ BVHBuildNode* recursiveBuild(std::vector<BVHPrimitiveInfo>& primitiveInfo,
     Bounds3f bounds = primitiveInfo[start].bounds;
 
     for (int i = start; i < end; ++i) {
-        Union(bounds, primitiveInfo[i].bounds);
+        bounds = Union(bounds, primitiveInfo[i].bounds);
     }
 
     int nPrimitives = end - start;
@@ -52,7 +52,7 @@ BVHBuildNode* recursiveBuild(std::vector<BVHPrimitiveInfo>& primitiveInfo,
             // we partition them into equally sized subsets
             // ------------------------------------------
 
-            if (nPrimitives <= 4) {
+            if (nPrimitives <= 2) {
                 //partitation primitives into equally sized subsets
 
                 std::nth_element(&primitiveInfo[start], &primitiveInfo[static_cast<int>(mid)], &primitiveInfo[end - 1] + 1,

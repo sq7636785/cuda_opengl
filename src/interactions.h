@@ -12,12 +12,12 @@
 __host__ __device__
 glm::vec3 SampleSphereUniform(float random_x, float random_y) {
     float z = 1.0f - 2 * random_x;
+
     float x = cos(2.0f * PI * random_y) * sqrt(1.0f - z * z);
     float y = sin(2.0f * PI * random_y) * sqrt(1.0f - z * z);
 
     return glm::vec3(x, y, z);
 }
-
 // CHECKITOUT
 /**
 * Computes a cosine-weighted random direction in a hemisphere.
@@ -162,6 +162,11 @@ glm::vec3 fresnelSchlickRoughness(float cosTheta, glm::vec3 F0, float roughness)
 }
 
 
+__host__ __device__ 
+inline glm::vec3 Faceforward(const glm::vec3 &n, const glm::vec3 &v) {
+    return (glm::dot(n, v) < 0.f) ? -n : n;
+}
+
 __host__ __device__
 void isotropicScatterintMedium(
     Geometry mediumGeom,
@@ -179,93 +184,141 @@ void isotropicScatterintMedium(
 #endif
 ) {
     float tFar;
+
     Ray rayInMedium;
-    rayInMedium.origin = ori;
+    rayInMedium.origin = ori,
     rayInMedium.direction = dir;
 
     thrust::uniform_real_distribution<float> u01(0, 1);
 
-    glm::vec3 tmpNormal;
+    glm::vec3 tmp_normal;
     glm::vec3 tmpIntersectPoint;
-    bool tmpOutside;
+    bool tmp_outside;
 
     // tweak this parameter
-    glm::vec3 absorptionColor(0.6f, 0.6f, 0.1f); // >1, start feeling like emitting
+    glm::vec3 absorptionColor(0.4f, 0.4f, 0.4f); // >1, start feeling like emitting
 
     // tweak this parameter
-    float absorptionAtDistance = 1.5f; // has something to do with density. 
+    float absorptionAtDistance = 5.5f; // has something to do with density. 
     //Larger -> lighter -> less enegy absorbed
     //Small  ->  darker -> more enegy absorbed
 
+    //// This method for calculating the absorption coefficient is borrowed from Burley's 2015 Siggraph Course Notes "Extending the Disney BRDF to a BSDF with Integrated Subsurface Scattering"
+    //// It's much more intutive to specify a color and a distance, then back-calculate the coefficient
     glm::vec3 absorptionCoefficient = (-1.0f / absorptionAtDistance) *
         glm::vec3(log10f(absorptionColor.x),
         log10f(absorptionColor.y),
         log10f(absorptionColor.z));
 
-    float scatteringDistance = 0.25f;
-    float scatteringCoefficent = (1.0f / scatteringDistance);
-    bool isBoundInsideMedium = true;
+    float scatteringDistance = 0.25f; // tweak this parameter
+    float scatteringCoefficient = (1.0f / scatteringDistance);
+    bool isBounceInsideMediumFinish = false;
 
     //To set up, set tranmission totally 1 -> no absorb
     glm::vec3 Transmission(1.0f, 1.0f, 1.0f);
 
-    while (true) {
-        ShadeableIntersection tmpIsect;
-        tmpIsect.t = FLT_MAX;
-        int hitTriIdx = -1;
+    //int bounceTime = 0;
+    //int maxBounceTime = 10;
 
-        //only for mesh?
+    // --------------- scattering start here -------------------
+    while (true) {
+        ShadeableIntersection temp_isect;
+        temp_isect.t = FLT_MAX;
+        int hit_tri_index = -1;
+
+        //if (bounceTime >= maxBounceTime) {
+
+        //	//Move Ray outside medium
+        //	IntersectBVH(rayInMedium, &temp_isect, hit_tri_index, nodes, tris);
+        //	tFar = temp_isect.t;
+        //	rayInMedium.origin += (tFar + 0.0005f) * rayInMedium.direction;
+        //	break; 
+        //}
+
+        // tFar is the largest distance from the origin of rayInMedium now to the exit of medium
+
+        //Sphere intersect test
         if (mediumGeom.type == SPHERE) {
-            
-            tFar = sphereIntersectionTest(mediumGeom, rayInMedium, tmpIntersectPoint, tmpNormal, tmpOutside);
+            tFar = sphereIntersectionTest(mediumGeom, rayInMedium, tmpIntersectPoint, tmp_normal, tmp_outside);
         }
+
+        //cube intersect test
         if (mediumGeom.type == CUBE) {
-            tFar = boxIntersectionTest(mediumGeom, rayInMedium, tmpIntersectPoint, tmpNormal, tmpOutside);
+            tFar = boxIntersectionTest(mediumGeom, rayInMedium, tmpIntersectPoint, tmp_normal, tmp_outside);
         }
+
+        //mesh intersect test
         if (mediumGeom.type == MESH) {
-            if (intersectBVH(rayInMedium, &tmpIsect, hitTriIdx, bvhNodes, tris)) {
-                if (hitTriIdx >= mediumGeom.startIndex && hitTriIdx < mediumGeom.endIndex) {
-                    tFar = tmpIsect.t;
+            if (intersectBVH(rayInMedium, &temp_isect, hit_tri_index, bvhNodes, tris)) {
+                if (hit_tri_index >= mediumGeom.startIndex
+                    && hit_tri_index < mediumGeom.endIndex) {
+                    tFar = temp_isect.t;
+                } else {
+                    tFar = -1.0f;
                 }
-            } else {
-                tFar = -1.0f;
             }
         }
+
         if (tFar < 0.0f) {
             // it means that rayInMedium has been outside the medium(geom)
-            break;
+            break; //Exit
         }
 
-        //1. sample distance
+        //float weight = 1.0f;
+        //float pdf = 1.0f;
+
+        //1.sample distance
         float random_float = u01(rng);
-        float distance = -logf(random_float) / scatteringCoefficent;
+        float distance = -logf(random_float) / scatteringCoefficient;
+        //float distance = -logf(random_float) / density;
+
+        // If we sample a distance farther than the next intersecting surface, clamp to the surface distance
         if (distance >= tFar) {
-            isBoundInsideMedium = false;
+            //pdf = 1.0f;
             distance = tFar;
+            isBounceInsideMediumFinish = true;
+        } else {
+            //pdf = std::exp(-scatteringCoefficient * distance);
         }
 
-        //2. get transmission of sampled distance
-        Transmission *= glm::vec3(expf(-absorptionCoefficient.x * distance), expf(-absorptionCoefficient.y * distance), expf(-absorptionCoefficient.z * distance));
-        
-        //3. move ray along direction
+        //2.get transmission of sampled distance
+        Transmission *= glm::vec3(expf(-absorptionCoefficient.x * distance),
+            expf(-absorptionCoefficient.y * distance),
+            expf(-absorptionCoefficient.z * distance));
+
+
+        //3.move ray along distance sampled
         rayInMedium.origin += rayInMedium.direction * distance;
 
-        //4. uniform sample a new ray diretion
+        //4.uniformly sample a new ray direction
+
+        //rayInMedium.direction = calculateRandomDirectionInHemisphere(rayInMedium.direction, rng);
+        //rayInMedium.direction = glm::normalize(rayInMedium.direction);
+
         float random_x = u01(rng);
         float random_y = u01(rng);
-        rayInMedium.direction = SampleSphereUniform(random_x, random_y);
+        rayInMedium.direction = glm::normalize(SampleSphereUniform(random_x, random_y));
 
-        if (!isBoundInsideMedium) {
-            break;
+        if (isBounceInsideMediumFinish) {
+            // This means ray has hit the exit of medium(geom)
+            rayInMedium.origin += 0.001f * rayInMedium.direction;
+            break; // Exit
         }
-        if (Transmission.x < 0.05f&&
-            Transmission.y < 0.05f&&
+
+        if (Transmission.x < 0.05f &&
+            Transmission.y < 0.05f &&
             Transmission.z < 0.05f) {
-            remainingBounds = 0; // bounce too many time in medium
+            //if Transmission is very small(totally absorbed)
+            //no need to trace this ray any more
+            remainingBounds = 0;
             break;
         }
+
+        //bounceTime++;
     }
-    color *= Transmission;
+
+    color *= (Transmission);
+
     ori = rayInMedium.origin;
     dir = rayInMedium.direction;
 }
@@ -324,14 +377,14 @@ void scatterRay(
     thrust::uniform_real_distribution<float> u01(0, 1);
     float prob = u01(rng);
     glm::vec3 wi;
-    glm::vec3 incidentDirection = pathSegment.ray.direction;
-    glm::vec3 newDirection;
+    
     bool isGlass = (m.hasReflective > 0.0f && m.hasRefractive > 0.0f);
 
     //subsurface scattering
     if (m.isBssdf) {
-        glm::vec3 forwardNormal = glm::dot(normal, incidentDirection) < 0 ? -normal : normal;
-        glm::vec3 rOrigin = intersect + incidentDirection * 0.0005f + 0.0002f * forwardNormal;
+        
+        glm::vec3 rOrigin = intersect + pathSegment.ray.direction * 0.0005f + 0.0002f * Faceforward(normal, pathSegment.ray.direction);
+        glm::vec3 newDirection = pathSegment.ray.direction; 
         isotropicScatterintMedium(geoms[hitGeomsID], pathSegment.remainingBounces, pathSegment.color, rOrigin, newDirection, rng, tris
 #ifdef ENABLE_MESHWORLDBOUND
             , worldBounds
@@ -342,7 +395,6 @@ void scatterRay(
             );
         pathSegment.ray.origin = rOrigin;
         pathSegment.ray.direction = newDirection;
-        return;
     } 
     
     //glass, reflect and refract
@@ -350,6 +402,9 @@ void scatterRay(
         float prob = u01(rng);
         wi = fractRay(pathSegment, normal, prob, m.indexOfRefraction);
         pathSegment.color *= m.specular.color;
+        pathSegment.ray.origin = intersect + wi * 0.001f;
+        pathSegment.ray.direction = wi;
+        pathSegment.color *= m.color;
     } 
 
     //pure refract
@@ -362,13 +417,18 @@ void scatterRay(
         }
         wi = glm::refract(pathSegment.ray.direction, normal, ratio);
         pathSegment.color *= m.specular.color;
-
+        pathSegment.ray.origin = intersect + wi * 0.001f;
+        pathSegment.ray.direction = wi;
+        pathSegment.color *= m.color;
     } 
     
     //pure reflect
     else if (m.hasReflective > 0.0f) {
         wi = glm::normalize(glm::reflect(pathSegment.ray.direction, normal));
         pathSegment.color *= m.specular.color;
+        pathSegment.ray.origin = intersect + wi * 0.001f;
+        pathSegment.ray.direction = wi;
+        pathSegment.color *= m.color;
     }
     else {
         if (m.specular.exponent > 0.0f) {
@@ -378,6 +438,9 @@ void scatterRay(
         else {//lambert
             wi = calculateRandomDirectionInHemisphere(normal, rng);
         }
+        pathSegment.ray.origin = intersect + wi * 0.001f;
+        pathSegment.ray.direction = wi;
+        pathSegment.color *= m.color;
     }
 
     /*
@@ -402,7 +465,6 @@ void scatterRay(
         pathSegment.color *= (diffuse + specular);
     }*/
     //pathSegment.remainingBounces--;
-    pathSegment.ray.origin = intersect + wi * 0.001f;
-    pathSegment.ray.direction = wi;
-    pathSegment.color *= m.color;
+    
+    
 }
