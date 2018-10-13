@@ -35,7 +35,7 @@ int                 height;
 
 int main() {
     //const char* sceneFile = "cornellBox_threeSphere.txt";
-    const char* sceneFile = "cornell_bunny.txt";
+    const char* sceneFile = "../scenes/cornell_bunny.txt";
     scene = new Scene(sceneFile);
 
     iteration = 0;
