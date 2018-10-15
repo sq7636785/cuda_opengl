@@ -33,6 +33,9 @@ Scene::Scene(const std::string &fileName) {
             if (strcmp(tokens[0].c_str(), "CAMERA") == 0) {
                 loadCamera();
             }
+            if (strcmp(tokens[0].c_str(), "ENVIRONMENTMAP") == 0) {
+                loadEnvironment();
+            }
         }
     }
     fp_in.close();
@@ -343,6 +346,22 @@ int Scene::loadObj(std::string objPath, Geometry &newGeom) {
         return 1;
     } else {
         std::cout << errors << std::endl;
+        return -1;
+    }
+}
+
+int Scene::loadEnvironment() {
+    std::cout << "Load Environment Map" << std::endl;
+
+    std::string texturePath;
+    utilityCore::safeGetline(fp_in, texturePath);
+    if (!texturePath.empty() && fp_in.good()) {
+        Texture newTexture;
+        newTexture.loadFromFile(texturePath.c_str());
+        environmentMap.push_back(newTexture);
+        return 1;
+    } else {
+        std::cout << "load environment map error" << std::endl;
         return -1;
     }
 }

@@ -23,6 +23,7 @@ class Scene {
       int loadMaterial(std::string fileName);
       int loadGeometry(std::string fileName);
       int loadCamera();
+      int loadEnvironment();
       int loadObj(std::string objPath, Geometry &newGeom);
 
   public:
@@ -33,7 +34,10 @@ class Scene {
       std::vector<Material> materials;
       std::vector<Triangle> triangles;
       std::vector<Bounds3f> worldBounds;
+      std::vector<Texture>  environmentMap;
       RenderState           state;
+
+      
 
 #ifdef ENABLE_BVH
       LinearBVHNode*         bvhNodes;

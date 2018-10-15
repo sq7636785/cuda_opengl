@@ -93,6 +93,9 @@ static int                      bvhNodesSize = 0;
 static LinearBVHNode*           dev_bvhNodes = NULL;
 #endif
 
+static Texture*                 dev_environmentMap = NULL;
+
+
 void pathTraceInit(Scene* scene) {
     hst_scene = scene;
     const Camera& cam = hst_scene->state.camera;
@@ -132,6 +135,17 @@ void pathTraceInit(Scene* scene) {
     }
 #endif
 
+    int environmentMapSize = hst_scene->environmentMap.size();
+    if (environmentMapSize > 0) {
+        //move texture from cpu to gpu in Texture class
+        int pixelNum = hst_scene->environmentMap[0].width * hst_scene->environmentMap[0].height * hst_scene->environmentMap[0].nComp;
+        cudaMalloc(&(hst_scene->environmentMap[0].devData), sizeof(unsigned char) * pixelNum);
+        cudaMemcpy(hst_scene->environmentMap[0].devData, hst_scene->environmentMap[0].hostData, pixelNum * sizeof(unsigned char), cudaMemcpyHostToDevice);
+        
+        cudaMalloc(&dev_environmentMap, sizeof(Texture));
+        cudaMemcpy(dev_environmentMap, hst_scene->environmentMap.data(),sizeof(Texture), cudaMemcpyHostToDevice);
+    }
+    
     checkCUDAError("pathTraceInit");
 }
 
@@ -154,6 +168,13 @@ void pathTraceFree() {
         cudaFree(dev_bvhNodes);
     }
 #endif
+
+    if (dev_environmentMap != NULL) {
+        
+      //  cudaFree(hst_scene->environmentMap[0].devData);
+        
+        cudaFree(dev_environmentMap);
+    }
     checkCUDAError("pathTraceFree");
 }
 
@@ -329,6 +350,7 @@ void shadeMaterial(
     , Material* materials
     , Geometry* geoms
     , Triangle* tris
+    , Texture* environmentMap
 #ifdef ENABLE_MESHWORLDBOUND
     , Bounds3f* worldBounds
 #endif
@@ -344,6 +366,7 @@ void shadeMaterial(
         PathSegment &pathSegment = pathSegments[index];
 
         if (pathSegment.remainingBounces > 0) {
+            
             if (intersect.t > 0) {
 
                 if (material.emittance > 0) {
@@ -372,9 +395,15 @@ void shadeMaterial(
                     pathSegment.remainingBounces--;
                 }
             } else {
-                pathSegment.color = glm::vec3(0.0f);
+                if (environmentMap != NULL) {
+                    pathSegment.color = environmentMap[0].getEnvironmentColor(pathSegment.ray.direction);
+                } else {
+                    pathSegment.color = glm::vec3(0.0f);
+                }
                 pathSegment.remainingBounces = 0;
             }
+            
+
         }
     }
 }
@@ -468,7 +497,8 @@ void pathTrace(uchar4* pbo, int frame, int iter) {
             dev_paths,
             dev_material,
             dev_geometry,
-            dev_tris
+            dev_tris,
+            dev_environmentMap
 #ifdef ENABLE_MESHWORLDBOUND
            ,dev_worldBounds
 #endif
