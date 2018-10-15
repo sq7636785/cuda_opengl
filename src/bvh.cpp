@@ -143,7 +143,7 @@ int flattenBVHTree(BVHBuildNode *node, int *offset, LinearBVHNode *bvhNodes) {
     linearNode->bounds = node->bounds;
     int myOffset = (*offset)++;
     if (node->nPrimitives > 0) {
-        linearNode->primitivesOffeset = node->firstPrimOffset;
+        linearNode->primitivesOffset = node->firstPrimOffset;
         linearNode->nPrimitives = node->nPrimitives;
     } else {
         //create interior flattened BVH node

@@ -92,6 +92,10 @@ glm::vec3 ggxImportanceSample(glm::vec3 normal, thrust::default_random_engine &r
     return sinTheta * cos(phi) * worldX + sinTheta * sin(phi) * worldY + cosTheta * normal;
 }
 
+__host__ __device__ inline glm::vec3 Reflect(const glm::vec3 &wo, const glm::vec3 &n) {
+    return -wo + 2.0f * glm::dot(wo, n) * n;
+}
+
 
 __host__ __device__ inline bool Refract(const glm::vec3 &wi, const glm::vec3 &n, float eta,
     glm::vec3 *wt) {
@@ -410,16 +414,40 @@ void scatterRay(
     //pure refract
     else if (m.hasRefractive > 0.0f) {
        
-        bool enter = glm::dot(normal, pathSegment.ray.direction) < 0.0f;
-        float ratio = m.indexOfRefraction;
-        if (enter) {
-            ratio = 1.f / ratio;
+//         bool enter = glm::dot(normal, pathSegment.ray.direction) < 0.0f;
+//         float ratio = m.indexOfRefraction;
+//         if (enter) {
+//             ratio = 1.f / ratio;
+//         }
+//         wi = glm::refract(pathSegment.ray.direction, normal, ratio);
+//         pathSegment.color *= m.specular.color;
+//         pathSegment.ray.origin = intersect + wi * 0.001f;
+//         pathSegment.ray.direction = wi;
+//         pathSegment.color *= m.color;
+        glm::vec3 incidentDirection = pathSegment.ray.direction;
+        glm::vec3 normal_bsdf = normal;
+        glm::vec3 newDirection;
+        bool entering = glm::dot(incidentDirection, normal_bsdf) < 0;
+        float indexOfRefraction = m.indexOfRefraction;
+        float eta = entering ? (1.0f / indexOfRefraction) : indexOfRefraction;
+
+        //glm::vec3 newDirection = glm::refract(incidentDirection, normal, eta);
+        //pathSegment.ray.direction = newDirection;
+        //pathSegment.ray.origin = intersect + 0.0002f * newDirection;
+        //pathSegment.color *= m.specular.color;
+
+        glm::vec3 wt;
+        if (!Refract(-incidentDirection, Faceforward(normal_bsdf, -incidentDirection), eta, &wt)) {
+            newDirection = Reflect(-incidentDirection, Faceforward(normal_bsdf, -incidentDirection));
+            newDirection = glm::normalize(newDirection);
+            pathSegment.ray.direction = newDirection;
+            pathSegment.ray.origin = intersect;
+        } else {
+            newDirection = glm::normalize(wt);
+            pathSegment.ray.direction = newDirection;
+            pathSegment.ray.origin = intersect + 0.0005f * incidentDirection + 0.0002f * Faceforward(normal_bsdf, incidentDirection);
         }
-        wi = glm::refract(pathSegment.ray.direction, normal, ratio);
         pathSegment.color *= m.specular.color;
-        pathSegment.ray.origin = intersect + wi * 0.001f;
-        pathSegment.ray.direction = wi;
-        pathSegment.color *= m.color;
     } 
     
     //pure reflect
@@ -433,10 +461,10 @@ void scatterRay(
     else {
         if (m.specular.exponent > 0.0f) {
             //glossy
-            wi = ggxImportanceSample(normal, rng, m.specular.exponent);
+            wi = glm::normalize(ggxImportanceSample(normal, rng, m.specular.exponent));
         }
         else {//lambert
-            wi = calculateRandomDirectionInHemisphere(normal, rng);
+            wi = glm::normalize(calculateRandomDirectionInHemisphere(normal, rng));
         }
         pathSegment.ray.origin = intersect + wi * 0.001f;
         pathSegment.ray.direction = wi;

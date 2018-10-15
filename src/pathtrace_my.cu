@@ -386,7 +386,7 @@ void finalGather(int nPaths, glm::vec3* image, PathSegment* iterationPaths) {
     int index = (blockIdx.x * blockDim.x) + threadIdx.x;
     if (index < nPaths) {
         PathSegment tmp = iterationPaths[index];
-        image[index] += tmp.color;
+        image[index] += (tmp.color + glm::vec3(0.1f, 0.1f, 0.1f));
     }
 }
 

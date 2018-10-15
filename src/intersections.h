@@ -218,15 +218,15 @@ bool intersectBVH(const Ray& ray, ShadeableIntersection* isect, int& hitTriIdx, 
                 //leaf node
                 for (int i = 0; i < node->nPrimitives; ++i) {
                     ShadeableIntersection tmpIsect;
-                    if (primitives[node->primitivesOffeset + i].Intersect(ray, &tmpIsect)) {
+                    if (primitives[node->primitivesOffset + i].Intersect(ray, &tmpIsect)) {
                         hit = true;
                         if (isect->t == -1.0f) {
-                            hitTriIdx = primitives[node->primitivesOffeset + i].index;
+                            hitTriIdx = primitives[node->primitivesOffset + i].index;
                             (*isect) = tmpIsect;
                         } else {
                             if (tmpIsect.t < isect->t) {
                                 (*isect) = tmpIsect;
-                                hitTriIdx = primitives[node->primitivesOffeset + i].index;
+                                hitTriIdx = primitives[node->primitivesOffset + i].index;
                             }
                         }
                     }

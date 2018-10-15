@@ -41,7 +41,7 @@ struct BVHBuildNode {
 struct LinearBVHNode {
     Bounds3f bounds;
     union  {
-        int primitivesOffeset;  // leaf
+        int primitivesOffset;  // leaf
         int secondChildOffset;  // interior
     };
 
