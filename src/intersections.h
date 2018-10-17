@@ -48,7 +48,7 @@ glm::vec3 multiplyMV(glm::mat4 m, glm::vec4 v) {
 //calcute the intersect point in the box coordinate     Slabs method  https://blog.csdn.net/u012325397/article/details/50807880
 //transform intersect point to world coordinate.
 __host__ __device__
-float boxIntersectionTest(Geometry box, Ray r, glm::vec3 &intersectionPoint, glm::vec3 &normal, bool &outside) {
+float boxIntersectionTest(Geometry box, Ray r, glm::vec3 &intersectionPoint, glm::vec3 &normal, glm::vec2& uv, bool &outside) {
     
     Ray q;
     q.origin = multiplyMV(box.inverseTransform, glm::vec4(r.origin, 1.0f));
@@ -85,7 +85,20 @@ float boxIntersectionTest(Geometry box, Ray r, glm::vec3 &intersectionPoint, glm
             tmin_n = tmax_n;
             outside = false;
         }
-        intersectionPoint = multiplyMV(box.transform, glm::vec4(getPointOnRay(q, tmin), 1.0f));
+
+        glm::vec3 objspaceIntersection = getPointOnRay(q, tmin);
+        glm::vec3 abs = glm::min(glm::abs(objspaceIntersection), 0.5f);
+        glm::vec2 UV(0.0f);
+        if (abs.x < abs.y && abs.x > abs.z) {
+            UV = glm::vec2(objspaceIntersection.z + 0.5f, objspaceIntersection.y + 0.5f);
+        } else if (abs.y > abs.x && abs.y > abs.z) {
+            UV = glm::vec2(objspaceIntersection.x + 0.5f, objspaceIntersection.z + 0.5f);
+        } else {
+            UV = glm::vec2(objspaceIntersection.x + 0.5f, objspaceIntersection.y + 0.5f);
+        }
+        uv = UV;
+
+        intersectionPoint = multiplyMV(box.transform, glm::vec4(objspaceIntersection, 1.0f));
         normal = glm::normalize(multiplyMV(box.transform, glm::vec4(tmin_n, 0.0f)));
         return glm::length(r.origin - intersectionPoint);
     }
@@ -104,7 +117,7 @@ float boxIntersectionTest(Geometry box, Ray r, glm::vec3 &intersectionPoint, glm
 */
 
 __host__ __device__
-float sphereIntersectionTest(Geometry sphere, Ray r, glm::vec3 &intersectionPoint, glm::vec3 &normal, bool &outside) {
+float sphereIntersectionTest(Geometry sphere, Ray r, glm::vec3 &intersectionPoint, glm::vec3 &normal, glm::vec2 &uv, bool &outside) {
     float radius = .5;
 
     glm::vec3 ro = multiplyMV(sphere.inverseTransform, glm::vec4(r.origin, 1.0f));
@@ -137,6 +150,16 @@ float sphereIntersectionTest(Geometry sphere, Ray r, glm::vec3 &intersectionPoin
     }
 
     glm::vec3 objspaceIntersection = getPointOnRay(rt, t);
+
+    //uv
+    glm::vec3 p = glm::normalize(objspaceIntersection);
+    float phi = atan2f(p.z, p.x);
+    if (phi < 0.0f) {
+        phi += TWO_PI;
+    }
+    float theta = glm::acos(p.y);
+    uv = glm::vec2(1.0f - phi / TWO_PI, 1.0f - theta / PI);
+
 
     intersectionPoint = multiplyMV(sphere.transform, glm::vec4(objspaceIntersection, 1.f));
     normal = glm::normalize(multiplyMV(sphere.invTranspose, glm::vec4(objspaceIntersection, 0.f)));

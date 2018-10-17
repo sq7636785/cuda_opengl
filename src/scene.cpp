@@ -162,14 +162,22 @@ int Scene::loadMaterial(std::string fileName) {
         } 
 
         newMaterial.isBssdf = false;
+        newMaterial.textureId = -1;
         utilityCore::safeGetline(fp_in, line);
-        if (!line.empty() && fp_in.good()) {
+        while (!line.empty() && fp_in.good()) {
             std::vector<std::string> tokens = utilityCore::tokenizeString(line);
             if (strcmp(tokens[0].c_str(), "BSSDF") == 0) {
                 if (strcmp(tokens[1].c_str(), "TRUE") == 0) {
                     newMaterial.isBssdf = true;
                 }
+            } else if (strcmp(tokens[0].c_str(), "TEXTURE") == 0) {
+                std::cout << "Load Texture " << tokens[1] << std::endl;
+                Texture newTexture;
+                newTexture.loadFromFile(tokens[1].c_str());
+                newMaterial.textureId = textureMap.size();
+                textureMap.push_back(newTexture);
             }
+            utilityCore::safeGetline(fp_in, line);
         }
 
         materials.push_back(newMaterial);
@@ -216,6 +224,10 @@ int Scene::loadCamera() {
             camera.lookAt = glm::vec3(atof(tokens[1].c_str()), atof(tokens[2].c_str()), atof(tokens[3].c_str()));
         } else if (strcmp(tokens[0].c_str(), "UP") == 0) {
             camera.up = glm::vec3(atof(tokens[1].c_str()), atof(tokens[2].c_str()), atof(tokens[3].c_str()));
+        } else if (strcmp(tokens[0].c_str(), "LEN") == 0) {
+            camera.lenRadius = atof(tokens[1].c_str());
+        } else if (strcmp(tokens[0].c_str(), "DISTANCE") == 0) {
+            camera.focalDistance = atof(tokens[1].c_str());
         }
 
         utilityCore::safeGetline(fp_in, line);
@@ -253,6 +265,8 @@ int Scene::loadCamera() {
     float xInc = xScale * 2.0f / camera.resolution.x;
     float yInc = yScale * 2.0f / camera.resolution.y;
     camera.pixelLength = glm::vec2(xInc, yInc);
+    
+
     
     //在视点坐标系中， n(z), u(y), v(x)， n是视线方向的负方向， 因为这样才和opengl的定义一致， 以及之后的投影操作符合
     //但可以利用视线方向来计算v和u，
@@ -351,10 +365,9 @@ int Scene::loadObj(std::string objPath, Geometry &newGeom) {
 }
 
 int Scene::loadEnvironment() {
-    std::cout << "Load Environment Map" << std::endl;
-
     std::string texturePath;
     utilityCore::safeGetline(fp_in, texturePath);
+    std::cout << "Load Environment Map " << texturePath << std::endl;
     if (!texturePath.empty() && fp_in.good()) {
         Texture newTexture;
         newTexture.loadFromFile(texturePath.c_str());

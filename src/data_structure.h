@@ -53,19 +53,24 @@ struct Material {
     float           hasRefractive;
     float           indexOfRefraction;
     float           emittance;
+    int             textureId;
     bool            isBssdf;
 };
 
 
 struct Camera {
-    glm::ivec2 resolution;
-    glm::vec3  position;
-    glm::vec3  lookAt;
-    glm::vec3  view;
-    glm::vec3  up;
-    glm::vec3  right;
-    glm::vec2  fov;
-    glm::vec2  pixelLength;
+    glm::ivec2  resolution;
+    glm::vec3   position;
+    glm::vec3   lookAt;
+    glm::vec3   view;
+    glm::vec3   up;
+    glm::vec3   right;
+    glm::vec2   fov;
+    glm::vec2   pixelLength;
+
+    float       lenRadius;
+    float       focalDistance;
+
 };
 
 
@@ -91,8 +96,9 @@ struct ShadeableIntersection {
     glm::vec3   surfaceNormal;
     int         materialId;
     int         hitGeomId;
+    glm::vec2   uv;
     glm::vec3   intersectPoint;
-    glm::vec3   tangentToWorld;
+    glm::mat3   tangentToWorld;
 };
 
 struct Vertex {

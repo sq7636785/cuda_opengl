@@ -35,6 +35,7 @@ class Scene {
       std::vector<Triangle> triangles;
       std::vector<Bounds3f> worldBounds;
       std::vector<Texture>  environmentMap;
+      std::vector<Texture>  textureMap;
       RenderState           state;
 
       

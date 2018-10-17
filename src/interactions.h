@@ -18,6 +18,15 @@ glm::vec3 SampleSphereUniform(float random_x, float random_y) {
 
     return glm::vec3(x, y, z);
 }
+
+__host__ __device__
+glm::vec2 concentricSampleDisk(float sampleX, float sampleY) {
+    float phi;
+    float r = sampleY;
+    phi = Pi / 4.0f * (sampleY / sampleX);
+    return glm::vec2(r * cos(phi), r * sin(phi));
+}
+
 // CHECKITOUT
 /**
 * Computes a cosine-weighted random direction in a hemisphere.
@@ -196,6 +205,7 @@ void isotropicScatterintMedium(
     thrust::uniform_real_distribution<float> u01(0, 1);
 
     glm::vec3 tmp_normal;
+    glm::vec2 tmp_uv;
     glm::vec3 tmpIntersectPoint;
     bool tmp_outside;
 
@@ -203,7 +213,7 @@ void isotropicScatterintMedium(
     glm::vec3 absorptionColor(0.4f, 0.4f, 0.4f); // >1, start feeling like emitting
 
     // tweak this parameter
-    float absorptionAtDistance = 5.5f; // has something to do with density. 
+    float absorptionAtDistance = 4.5f; // has something to do with density. 
     //Larger -> lighter -> less enegy absorbed
     //Small  ->  darker -> more enegy absorbed
 
@@ -243,12 +253,12 @@ void isotropicScatterintMedium(
 
         //Sphere intersect test
         if (mediumGeom.type == SPHERE) {
-            tFar = sphereIntersectionTest(mediumGeom, rayInMedium, tmpIntersectPoint, tmp_normal, tmp_outside);
+            tFar = sphereIntersectionTest(mediumGeom, rayInMedium, tmpIntersectPoint, tmp_normal, tmp_uv, tmp_outside);
         }
 
         //cube intersect test
         if (mediumGeom.type == CUBE) {
-            tFar = boxIntersectionTest(mediumGeom, rayInMedium, tmpIntersectPoint, tmp_normal, tmp_outside);
+            tFar = boxIntersectionTest(mediumGeom, rayInMedium, tmpIntersectPoint, tmp_normal,tmp_uv, tmp_outside);
         }
 
         //mesh intersect test
@@ -361,9 +371,11 @@ void scatterRay(
     PathSegment & pathSegment,
     glm::vec3 intersect,
     glm::vec3 normal,
+    glm::vec2 uv,
     Material &m,
     Geometry* geoms,
-    Triangle* tris
+    Triangle* tris,
+    Texture* textureMap
 #ifdef ENABLE_MESHWORLDBOUND
    ,Bounds3f* worldBounds
 #endif
@@ -441,7 +453,7 @@ void scatterRay(
             newDirection = Reflect(-incidentDirection, Faceforward(normal_bsdf, -incidentDirection));
             newDirection = glm::normalize(newDirection);
             pathSegment.ray.direction = newDirection;
-            pathSegment.ray.origin = intersect;
+            pathSegment.ray.origin = intersect;  
         } else {
             newDirection = glm::normalize(wt);
             pathSegment.ray.direction = newDirection;
@@ -468,7 +480,11 @@ void scatterRay(
         }
         pathSegment.ray.origin = intersect + wi * 0.001f;
         pathSegment.ray.direction = wi;
-        pathSegment.color *= m.color;
+        glm::vec3 diffuseColor = m.color;
+        if (m.textureId != -1) {
+            diffuseColor = textureMap[m.textureId].getColor(uv);
+        }
+        pathSegment.color *= diffuseColor;
     }
 
     /*

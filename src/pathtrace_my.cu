@@ -95,6 +95,9 @@ static LinearBVHNode*           dev_bvhNodes = NULL;
 
 static Texture*                 dev_environmentMap = NULL;
 
+static Texture*                 dev_textureMap = NULL;
+static int                      textureMapSize = 0;
+
 
 void pathTraceInit(Scene* scene) {
     hst_scene = scene;
@@ -146,6 +149,17 @@ void pathTraceInit(Scene* scene) {
         cudaMemcpy(dev_environmentMap, hst_scene->environmentMap.data(),sizeof(Texture), cudaMemcpyHostToDevice);
     }
     
+    textureMapSize = hst_scene->textureMap.size();
+    if (textureMapSize > 0) {
+        for (int i = 0; i < textureMapSize; ++i) {
+            int pixelNum = hst_scene->textureMap[i].height * hst_scene->textureMap[i].height * hst_scene->textureMap[i].nComp;
+            cudaMalloc(&hst_scene->textureMap[i].devData, sizeof(unsigned char)* pixelNum);
+            cudaMemcpy(hst_scene->textureMap[i].devData, hst_scene->textureMap[i].hostData, sizeof(unsigned char)* pixelNum, cudaMemcpyHostToDevice);
+        }
+        cudaMalloc(&dev_textureMap, sizeof(Texture)* textureMapSize);
+        cudaMemcpy(dev_textureMap, hst_scene->textureMap.data(), textureMapSize * sizeof(Texture), cudaMemcpyHostToDevice);
+    }
+
     checkCUDAError("pathTraceInit");
 }
 
@@ -175,6 +189,10 @@ void pathTraceFree() {
         
         cudaFree(dev_environmentMap);
     }
+
+    if (textureMapSize > 0) {
+        cudaFree(dev_textureMap);
+    }
     checkCUDAError("pathTraceFree");
 }
 
@@ -196,7 +214,7 @@ void generateRayFromCamera(Camera cam, int iter, int traceDepth, PathSegment* pa
         int index = y * cam.resolution.x + x;
 
         thrust::default_random_engine rng = makeSeededRandomEngine(iter, x, y);
-        thrust::uniform_real_distribution<float> u01(-0.5, 0.5);
+        thrust::uniform_real_distribution<float> u01(0, 1);
 
         float xMov = u01(rng);
         float yMov = u01(rng);
@@ -207,11 +225,19 @@ void generateRayFromCamera(Camera cam, int iter, int traceDepth, PathSegment* pa
         tmp.pixelIndex = index;
         tmp.color = glm::vec3(1.0, 1.0, 1.0);
         // TODO: implement antialiasing by jittering the ray
-        tmp.ray.direction = glm::normalize(cam.view - (static_cast<float>(x) + xMov -cam.resolution.x * 0.5f) * cam.pixelLength.x * cam.right
-                                                   - (static_cast<float>(y) + yMov -cam.resolution.y * 0.5f) * cam.pixelLength.y * cam.up);
+        tmp.ray.direction = glm::normalize(cam.view - (static_cast<float>(x)+xMov - cam.resolution.x * 0.5f) * cam.pixelLength.x * cam.right
+            - (static_cast<float>(y)+yMov - cam.resolution.y * 0.5f) * cam.pixelLength.y * cam.up);
+
+        if (cam.lenRadius > 0.0f) {
+            float u1 = u01(rng);
+            float u2 = u01(rng);
+            glm::vec2 pLens = concentricSampleDisk(u1, u2) * cam.lenRadius;
+            glm::vec3 pFocus = tmp.ray.origin + tmp.ray.direction * cam.focalDistance;
+            tmp.ray.origin += pLens.x * cam.right + pLens.y * cam.up;
+            tmp.ray.direction = glm::normalize(pFocus - tmp.ray.origin);
+        }
     }
 }
-
 
 // TODO:
 // computeIntersections handles generating ray intersections ONLY.
@@ -238,6 +264,7 @@ void computeIntersection(
         //final para
         float tMin = 10000.0f;
         glm::vec3 normal;
+        glm::vec2 uv;
         int geomsId = -1;
         PathSegment &unit = pathSegments[index];
         ShadeableIntersection &si = intersections[index];
@@ -245,14 +272,15 @@ void computeIntersection(
         bool outside = true;
         glm::vec3 tmpIntersectPoint;
         glm::vec3 tmpNormal;
+        glm::vec2 tmpUV;
         float t;
 
         int hitTriIdx = -1;
         for (int i = 0; i < geoms_size; ++i) {
             if (geoms[i].type == GeomType::SPHERE) {
-                t = sphereIntersectionTest(geoms[i], unit.ray, tmpIntersectPoint, tmpNormal, outside);
+                t = sphereIntersectionTest(geoms[i], unit.ray, tmpIntersectPoint, tmpNormal, tmpUV, outside);
             } else if (geoms[i].type == GeomType::CUBE) {
-                t = boxIntersectionTest(geoms[i], unit.ray, tmpIntersectPoint, tmpNormal, outside);
+                t = boxIntersectionTest(geoms[i], unit.ray, tmpIntersectPoint, tmpNormal, tmpUV, outside);
             } else if (geoms[i].type == GeomType::MESH) {
 #ifdef ENABLE_MESHWORLDBOUND
 #ifdef ENABLE_BVH
@@ -284,11 +312,13 @@ void computeIntersection(
                 tMin = t;
                 normal = tmpNormal;
                 geomsId = i;
+                uv = tmpUV;
             }
         }
         if (tMin > 0 && geomsId != -1) {
             si.materialId = geoms[geomsId].materialID;
             si.surfaceNormal = normal;
+            si.uv = uv;
             si.t = tMin;
             si.hitGeomId = geomsId;
         } else {
@@ -351,6 +381,7 @@ void shadeMaterial(
     , Geometry* geoms
     , Triangle* tris
     , Texture* environmentMap
+    , Texture* textureMap
 #ifdef ENABLE_MESHWORLDBOUND
     , Bounds3f* worldBounds
 #endif
@@ -381,9 +412,11 @@ void shadeMaterial(
                         pathSegment
                       , intersectPoint
                       , intersect.surfaceNormal
+                      , intersect.uv
                       , material
                       , geoms
                       , tris
+                      , textureMap
 #ifdef ENABLE_MESHWORLDBOUND
                       , worldBounds
 #endif
@@ -396,7 +429,7 @@ void shadeMaterial(
                 }
             } else {
                 if (environmentMap != NULL) {
-                    pathSegment.color = environmentMap[0].getEnvironmentColor(pathSegment.ray.direction);
+                    pathSegment.color *= environmentMap[0].getEnvironmentColor(pathSegment.ray.direction);
                 } else {
                     pathSegment.color = glm::vec3(0.0f);
                 }
@@ -498,7 +531,8 @@ void pathTrace(uchar4* pbo, int frame, int iter) {
             dev_material,
             dev_geometry,
             dev_tris,
-            dev_environmentMap
+            dev_environmentMap,
+            dev_textureMap
 #ifdef ENABLE_MESHWORLDBOUND
            ,dev_worldBounds
 #endif
