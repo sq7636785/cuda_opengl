@@ -28,7 +28,7 @@ REFL        0.5
 REFR        0.5
 REFRIOR     5.5
 EMITTANCE   0
-//BSSDF	TRUE
+BSSDF	TRUE
 
 // Camera
 CAMERA

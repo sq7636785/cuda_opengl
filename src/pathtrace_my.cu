@@ -392,8 +392,8 @@ void shadeMaterial(
     int index = blockDim.x * blockIdx.x + threadIdx.x;
 
     if (index < num_paths) {
-        ShadeableIntersection &intersect = intersections[index];
-        Material &material = materials[intersect.materialId];
+        ShadeableIntersection intersect = intersections[index];
+        Material material = materials[intersect.materialId];
         PathSegment &pathSegment = pathSegments[index];
 
         if (pathSegment.remainingBounces > 0) {
