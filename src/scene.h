@@ -25,6 +25,8 @@ class Scene {
       int loadCamera();
       int loadEnvironment();
       int loadObj(std::string objPath, Geometry &newGeom);
+      int loadCurve(std::string curvePath, Geometry &newGeom);
+      std::vector<Curve> makeCurve(const glm::vec3* c, float w0, float w1, int sd = 8);
 
   public:
       Scene(const std::string &fileName);
@@ -36,6 +38,7 @@ class Scene {
       std::vector<Bounds3f> worldBounds;
       std::vector<Texture>  environmentMap;
       std::vector<Texture>  textureMap;
+      std::vector<Curve>	curves;
       RenderState           state;
 
       

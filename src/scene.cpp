@@ -3,7 +3,6 @@
 
 #include "glm/gtc/matrix_inverse.hpp"
 #include "glm/gtx/string_cast.hpp"
-#include "GLFW/glfw3.h"
 #include "scene.h"
 
 #include "tiny_obj_loader.h"
@@ -20,7 +19,7 @@ Scene::Scene(const std::string &fileName) {
     while (fp_in.good()) {
         std::string line;
         utilityCore::safeGetline(fp_in, line);
-        
+
         if (!line.empty()) {
             std::vector<std::string> tokens = utilityCore::tokenizeString(line);
 
@@ -41,11 +40,10 @@ Scene::Scene(const std::string &fileName) {
     fp_in.close();
 
 #ifdef ENABLE_BVH
-    double startTime = glfwGetTime();
+    double startTime = 0;
     bvhTotalNodes = 0;
     int maxPrimitivesInNode = 5;
     bvhNodes = ConstructBVHAccel(bvhTotalNodes, triangles, maxPrimitivesInNode);
-    std::cout << "Total Time to Construct BVH tree: " << glfwGetTime() - startTime << std::endl;
     std::cout << "BVH has " << bvhTotalNodes << " nodes" << std::endl;
 
 #endif
@@ -70,7 +68,9 @@ int Scene::loadGeometry(std::string fileName) {
         std::string line;
 
         bool isMesh = false;
+        bool isCurve = false;
         std::string objPath;
+        std::string curvePath;
         utilityCore::safeGetline(fp_in, line);
         if (!line.empty() && fp_in.good()) {
             if (strcmp(line.c_str(), "sphere") == 0) {
@@ -83,6 +83,9 @@ int Scene::loadGeometry(std::string fileName) {
                 std::cout << "creating new mesh" << std::endl;
                 newGeom.type = MESH;
                 isMesh = true;
+            } else if (strcmp(line.c_str(), "curve") == 0) {
+                newGeom.type = CURVE;
+                isCurve = true;
             }
         }
 
@@ -109,6 +112,9 @@ int Scene::loadGeometry(std::string fileName) {
             } else if (strcmp(tokens[0].c_str(), "OBJ_PATH") == 0) {
                 objPath = tokens[1];
                 //std::cout << triangles.size() << std::endl;
+            } else if (strcmp(tokens[0].c_str(), "CURVE_PATH") == 0) {
+                curvePath = tokens[1];
+                //std::cout << triangles.size() << std::endl;
             }
 
             utilityCore::safeGetline(fp_in, line);
@@ -118,10 +124,16 @@ int Scene::loadGeometry(std::string fileName) {
         newGeom.inverseTransform = glm::inverse(newGeom.transform);
         newGeom.invTranspose = glm::inverseTranspose(newGeom.transform);
 
-        if (isMesh) {
-            loadObj(objPath, newGeom);
+
+        if (isCurve) {
+            loadCurve(curvePath, newGeom);
+        } else {
+            if (isMesh) {
+                loadObj(objPath, newGeom);
+            }
+            geometrys.push_back(newGeom);
         }
-        geometrys.push_back(newGeom);
+
         return 1;
     }
 }
@@ -159,7 +171,7 @@ int Scene::loadMaterial(std::string fileName) {
             } else if (strcmp(tokens[0].c_str(), "EMITTANCE") == 0) {
                 newMaterial.emittance = atof(tokens[1].c_str());
             }
-        } 
+        }
 
         newMaterial.isBssdf = false;
         newMaterial.textureId = -1;
@@ -235,7 +247,7 @@ int Scene::loadCamera() {
 
 
     //calcute fov
-    
+
     /*
     my origin calcution
     float tanyh = tan(0.5f * fovy * (PI / 180.0f));
@@ -255,8 +267,8 @@ int Scene::loadCamera() {
     //tan(fovy/2) / (y / 2) = tan (fovx/2) / (x / 2), so, the divide 2 can be saved.
     float yScale = tan(fovy * PI / 180.0f);
     float xScale = yScale * camera.resolution.x / camera.resolution.y;
-    float fovx   = atan(xScale) * 180.0f / PI;
-    camera.fov   = glm::vec2(fovx, fovy);
+    float fovx = atan(xScale) * 180.0f / PI;
+    camera.fov = glm::vec2(fovx, fovy);
 
     //we set focallenth to 1, the the focalpoint(0, 0), so the up point is (0, tan(fovy/2) * foallenth)
     //so each pixel increse is tan(fovy/2) * focallength / (y / 2)
@@ -265,14 +277,14 @@ int Scene::loadCamera() {
     float xInc = xScale * 2.0f / camera.resolution.x;
     float yInc = yScale * 2.0f / camera.resolution.y;
     camera.pixelLength = glm::vec2(xInc, yInc);
-    
 
-    
+
+
     //在视点坐标系中， n(z), u(y), v(x)， n是视线方向的负方向， 因为这样才和opengl的定义一致， 以及之后的投影操作符合
     //但可以利用视线方向来计算v和u，
     //但在最后返回视点坐标系矩阵时候， 应该将视线方向取负作为视线坐标系中的n轴
     //在平移上， 可以看下你总结的坐标变换， 就是求视点位置在视点坐标系下各个轴的投影。
-    
+
     camera.view = glm::normalize(camera.lookAt - camera.position);
     camera.right = glm::normalize(glm::cross(camera.view, camera.up));
     camera.up = glm::normalize(glm::cross(camera.right, camera.view));
@@ -364,6 +376,58 @@ int Scene::loadObj(std::string objPath, Geometry &newGeom) {
     }
 }
 
+int Scene::loadCurve(std::string curvePath, Geometry &newGeom) {
+
+    if (curvePath.length() == 0) {
+        return false;
+    }
+    int curCurveIdx = curves.size();
+    int curWorldBoundIdx = worldBounds.size();
+
+    //TODO : load curve file
+
+    std::ifstream fp_in2;
+    std::string line;
+
+
+    fp_in2.open(curvePath.c_str());
+    if (!fp_in2.is_open()) {
+        std::cout << "Error reading from file - aborting!" << std::endl;
+        throw;
+    }
+
+    if (fp_in2.good()) {
+        utilityCore::safeGetline(fp_in2, line);
+    }
+    while (!line.empty() && fp_in2.good()) {
+        std::vector<std::string> tokens = utilityCore::tokenizeString(line);
+
+        glm::vec3 p[4] = {
+            glm::vec3(atof(tokens[10].c_str()), atof(tokens[11].c_str()), atof(tokens[12].c_str())),
+            glm::vec3(atof(tokens[13].c_str()), atof(tokens[14].c_str()), atof(tokens[15].c_str())),
+            glm::vec3(atof(tokens[16].c_str()), atof(tokens[17].c_str()), atof(tokens[18].c_str())),
+            glm::vec3(atof(tokens[19].c_str()), atof(tokens[20].c_str()), atof(tokens[21].c_str()))
+        };
+        float w0 = atof(tokens[26].c_str());
+        float w1 = atof(tokens[31].c_str());
+
+        std::vector<Curve> curveSegs = makeCurve(p, w0, w1);
+        int curveSize = curveSegs.size();
+        for (int i = 0; i < curveSize; ++i) {
+            Geometry tmpGeom = newGeom;
+            tmpGeom.curveId = curCurveIdx;
+            tmpGeom.worldBoundIdx = curWorldBoundIdx;
+            worldBounds.push_back(curveSegs[i].objBound());
+            ++curWorldBoundIdx;
+            curves.push_back(curveSegs[i]);
+            ++curCurveIdx;
+            geometrys.push_back(tmpGeom);
+        }
+        utilityCore::safeGetline(fp_in2, line);
+    }
+    return 1;
+}
+
 int Scene::loadEnvironment() {
     std::string texturePath;
     utilityCore::safeGetline(fp_in, texturePath);
@@ -378,3 +442,17 @@ int Scene::loadEnvironment() {
         return -1;
     }
 }
+
+
+std::vector<Curve> Scene::makeCurve(const glm::vec3* c, float w0, float w1, int sd) {
+
+    CurveCommon* common = new CurveCommon(c, w0, w1, nullptr);
+    std::vector<Curve> segments;
+    for (int i = 0; i < sd; ++i) {
+        float uMin = static_cast<float>(i) / sd;
+        float uMax = static_cast<float>(i + 1) / sd;
+        segments.push_back(Curve(uMin, uMax, common));
+    }
+    return segments;
+}
+

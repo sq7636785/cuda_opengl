@@ -23,7 +23,8 @@
 enum GeomType {
     SPHERE,
     CUBE,
-    MESH
+    MESH,
+    CURVE
 };
 
 
@@ -36,7 +37,7 @@ struct Geometry {
     glm::mat4       transform;
     glm::mat4       inverseTransform;
     glm::mat4       invTranspose;
-
+    int				curveId;
     int             startIndex;
     int             endIndex;
     int             worldBoundIdx;
@@ -116,70 +117,63 @@ struct Triangle {
 
 
     __host__ __device__
-        Bounds3f worldBounds() {
-        float minX = glm::min(vertices[0].x, glm::min(vertices[1].x, vertices[2].x));
-        float minY = glm::min(vertices[0].y, glm::min(vertices[1].y, vertices[2].y));
-        float minZ = glm::min(vertices[0].z, glm::min(vertices[1].z, vertices[2].z));
-
-        float maxX = glm::max(vertices[0].x, glm::max(vertices[1].x, vertices[2].x));
-        float maxY = glm::max(vertices[0].y, glm::max(vertices[1].y, vertices[2].y));
-        float maxZ = glm::max(vertices[0].z, glm::max(vertices[1].z, vertices[2].z));
-
-
-        if (minX == maxX) {
-            minX -= 0.01f;
-            maxX += 0.01f;
-        }
-
-        if (minY == maxY) {
-            minY -= 0.01f;
-            maxY += 0.01f;
-        }
-
-        if (minZ == maxZ) {
-            minZ -= 0.01f;
-            maxZ += 0.01f;
-        }
-
-
-        return Bounds3f(glm::vec3(minX, minY, minZ),
-            glm::vec3(maxX, maxY, maxZ));
-    }
-
+        Bounds3f worldBounds();
     __host__ __device__
         float surfaceArea() {
         return glm::length(glm::cross(vertices[0] - vertices[1], vertices[2] - vertices[1])) * 0.5f;
     }
 
-    __host__ __device__ bool Intersect(const Ray& r, ShadeableIntersection* isect) const {
-
-        glm::vec3 baryPosition(0.f);
-
-        if (glm::intersectRayTriangle(r.origin, r.direction,
-            vertices[0], vertices[1], vertices[2],
-            baryPosition)) {
-
-            // Material ID should be set on the Geom level
-
-            isect->t = baryPosition.z;
-
-            isect->surfaceNormal = normals[0] * (1.0f - baryPosition.x - baryPosition.y) +
-                normals[1] * baryPosition.x +
-                normals[2] * baryPosition.y;
-
-            isect->surfaceNormal = glm::normalize(isect->surfaceNormal);
-
-
-            return true;
-        }
-
-        else {
-            isect->t = -1.0f;
-            return false;
-        }
-
-    }
+    __host__ __device__ 
+        bool Intersect(const Ray& r, ShadeableIntersection* isect) const;
 };
+
+
+
+struct CurveCommon {
+    CurveCommon(const glm::vec3 c[4], float width0, float width1, const glm::vec3 *n) {
+        controlPoint[0] = c[0];
+        controlPoint[1] = c[1];
+        controlPoint[2] = c[2];
+        controlPoint[3] = c[3];
+        startWidth = width0;
+        endWidth = width1;
+        if (n) {
+            normal[0] = n[0];
+            normal[1] = n[1];
+        }
+    }
+    glm::vec3	controlPoint[4];
+    glm::vec3	normal[2];
+    float		startWidth;
+    float		endWidth;
+};
+
+
+struct Curve {
+    Curve() {
+        common = nullptr;
+    };
+    Curve(float min, float max, CurveCommon* c) {
+        uMin = min;
+        uMax = max;
+        common = c;
+    };
+    
+        Bounds3f objBound() const;
+    __host__ __device__
+        bool Intersect(const Ray& ray, float *tHit, ShadeableIntersection *isect, glm::mat4 worldToObj, glm::mat4 objToWorld);
+    __host__ __device__
+        bool recursiveIntersect(const Ray &ray, float *tHit,
+            ShadeableIntersection *isect, const glm::vec3 cp[4],
+            const glm::mat4 &rayToObject, glm::mat4 &objToWorld, float u0, float u1,
+            int depth) const;
+
+    float							uMin;
+    float							uMax;
+    CurveCommon*					common;
+};
+
+
 
 
 struct Texture {
@@ -203,42 +197,12 @@ struct Texture {
     }
 
     __host__ __device__
-        glm::vec3 getColor(glm::vec2& uv) {
-        float w = static_cast<float>(width);
-        float h = static_cast<float>(height);
-        int x = glm::min(w * uv.x, w - 1.0f);
-        int y = glm::min(h * (1.0f - uv.y), h - 1.0f);
-
-        int texelIdx = y * width + x;
-        //gpu only
-        glm::vec3 color = COLORDIVIDOR * glm::vec3(devData[texelIdx * nComp], devData[texelIdx * nComp + 1], devData[texelIdx * nComp + 2]);
-        return color;
-    }
+        glm::vec3 getColor(glm::vec2& uv);
+    __host__ __device__
+        glm::vec3 getNormal(glm::vec2& uv);
 
     __host__ __device__
-        glm::vec3 getNormal(glm::vec2& uv) {
-        float w = static_cast<float>(width);
-        float h = static_cast<float>(height);
-        int x = glm::min(w * uv.x, w - 1.0f);
-        int y = glm::min(h * ( 1.0f - uv.y), h - 1.0f);
-
-        int texelIdx = y * width + x;
-        glm::vec3 normal = glm::vec3(devData[texelIdx * nComp], devData[texelIdx * nComp + 1], devData[texelIdx * nComp + 2]);
-        normal = 2.0f * COLORDIVIDOR * normal;
-        normal = glm::vec3(normal.x - 1.0f, normal.y - 1.0f, normal.z - 1.0f);
-        return normal;
-    }
-
-    __host__ __device__
-        glm::vec3 getEnvironmentColor(glm::vec3& dir) {
-        dir = glm::normalize(dir);
-        float phi = std::atan2(dir.z, dir.x);
-        phi = (phi < 0.0f) ? (phi + 2.0f * Pi) : phi;
-        float theta = glm::acos(dir.y);
-
-        glm::vec2 uv = glm::vec2(phi * Inv2Pi, 1.0f - theta * InvPi);
-        return getColor(uv);
-    }
+        glm::vec3 getEnvironmentColor(glm::vec3& dir);
 };
 
 

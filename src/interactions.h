@@ -7,6 +7,45 @@
 
 //#define PBR
 
+__host__ __device__
+glm::vec3 Texture::getColor(glm::vec2& uv) {
+    float w = static_cast<float>(width);
+    float h = static_cast<float>(height);
+    int x = glm::min(w * uv.x, w - 1.0f);
+    int y = glm::min(h * (1.0f - uv.y), h - 1.0f);
+
+    int texelIdx = y * width + x;
+    //gpu only
+    glm::vec3 color = COLORDIVIDOR * glm::vec3(devData[texelIdx * nComp], devData[texelIdx * nComp + 1], devData[texelIdx * nComp + 2]);
+    return color;
+}
+
+
+__host__ __device__
+glm::vec3 Texture::getNormal(glm::vec2& uv) {
+    float w = static_cast<float>(width);
+    float h = static_cast<float>(height);
+    int x = glm::min(w * uv.x, w - 1.0f);
+    int y = glm::min(h * (1.0f - uv.y), h - 1.0f);
+
+    int texelIdx = y * width + x;
+    glm::vec3 normal = glm::vec3(devData[texelIdx * nComp], devData[texelIdx * nComp + 1], devData[texelIdx * nComp + 2]);
+    normal = 2.0f * COLORDIVIDOR * normal;
+    normal = glm::vec3(normal.x - 1.0f, normal.y - 1.0f, normal.z - 1.0f);
+    return normal;
+}
+
+
+__host__ __device__
+glm::vec3 Texture::getEnvironmentColor(glm::vec3& dir) {
+    dir = glm::normalize(dir);
+    float phi = std::atan2(dir.z, dir.x);
+    phi = (phi < 0.0f) ? (phi + 2.0f * Pi) : phi;
+    float theta = glm::acos(dir.y);
+
+    glm::vec2 uv = glm::vec2(phi * Inv2Pi, 1.0f - theta * InvPi);
+    return getColor(uv);
+}
 
 
 __host__ __device__
