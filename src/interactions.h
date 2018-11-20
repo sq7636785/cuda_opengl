@@ -381,6 +381,7 @@ thrust::default_random_engine &rng
 }
 
 
+
 __host__ __device__
 void isotropicScatterintMedium(
     Geometry mediumGeom,
