@@ -98,6 +98,8 @@ static Texture*                 dev_environmentMap = NULL;
 static Texture*                 dev_textureMap = NULL;
 static int                      textureMapSize = 0;
 
+static Curve*                   dev_curves = NULL;
+
 
 void pathTraceInit(Scene* scene) {
     hst_scene = scene;
@@ -120,6 +122,9 @@ void pathTraceInit(Scene* scene) {
 
     cudaMalloc(&dev_tris, hst_scene->triangles.size() * sizeof(Triangle));
     cudaMemcpy(dev_tris, hst_scene->triangles.data(), hst_scene->triangles.size() * sizeof(Triangle), cudaMemcpyHostToDevice);
+
+    cudaMalloc(&dev_curves, hst_scene->curves.size() * sizeof(Curve));
+    cudaMemcpy(dev_curves, hst_scene->curves.data(), hst_scene->curves.size() * sizeof(Curve), cudaMemcpyHostToDevice);
 
 #ifdef ENABLE_MESHWORLDBOUND
     worldBoundsSize = scene->worldBounds.size();
@@ -171,6 +176,7 @@ void pathTraceFree() {
     cudaFree(dev_intersection);
     cudaFree(dev_paths);
     cudaFree(dev_tris);
+    cudaFree(dev_curves);
 #ifdef ENABLE_MESHWORLDBOUND
     if (worldBoundsSize > 0) {
         cudaFree(dev_worldBounds);
@@ -250,7 +256,8 @@ void computeIntersection(
     Geometry* geoms, 
     int geoms_size, 
     ShadeableIntersection *intersections,
-    Triangle* tris
+    Triangle* tris,
+    Curve*  curves
 #ifdef ENABLE_MESHWORLDBOUND
     ,Bounds3f *worldBounds
 #endif
@@ -305,6 +312,203 @@ void computeIntersection(
 #else
                 t = meshIntersectionTest(geoms[i], tris, unit.ray, intersectPoint, normal, outside);
 #endif
+            } else if (geoms[i].type == GeomType::CURVE) {
+                ShadeableIntersection isect;
+                isect.t = FLT_MAX;
+                Geometry& geom = geoms[i];
+                Curve& curve = curves[geom.curveId];
+                
+                glm::mat4 &trans = geom.transform;
+                glm::mat4 &invtrans = geom.invTranspose;
+                //if (curve.Intersect(unit.ray, &tmpIsect.t, &tmpIsect, trans, invtrans)) {}
+
+                Ray r = unit.ray;
+                CurveCommon *common = curve.common;
+                float uMin = curve.uMin;
+                float uMax = curve.uMax;
+
+
+                glm::vec3 oErr, dErr;
+                Ray ray;
+                ray.origin = multiplyMV(trans, glm::vec4(r.origin, 1.0f));
+                ray.direction = multiplyMV(trans, glm::vec4(r.direction, 0.0f));
+                glm::vec3 cpObj[4];
+                cpObj[0] = BlossomBezier(common->controlPoint, uMin, uMin, uMin);
+                cpObj[1] = BlossomBezier(common->controlPoint, uMin, uMin, uMax);
+                cpObj[2] = BlossomBezier(common->controlPoint, uMin, uMax, uMax);
+                cpObj[3] = BlossomBezier(common->controlPoint, uMax, uMax, uMax);
+
+                
+                glm::vec3 dx = glm::cross(ray.direction, cpObj[3] - cpObj[0]);
+                if (glm::dot(dx, dx) == 0.0f) {
+                    glm::vec3 dy;
+                    CoordinateSystem(ray.direction, &dx, &dy);
+                }
+                
+                glm::mat4 objToRay = glm::lookAt(ray.origin, ray.origin + ray.direction, dx);
+                glm::vec3 cp[4] = {
+                    multiplyMV(objToRay, glm::vec4(cpObj[0], 1.0f)),
+                    multiplyMV(objToRay, glm::vec4(cpObj[1], 1.0f)),
+                    multiplyMV(objToRay, glm::vec4(cpObj[2], 1.0f)),
+                    multiplyMV(objToRay, glm::vec4(cpObj[3], 1.0f))
+                };
+                
+                //zaizhe
+                float maxWidth = glm::max(Lerp(uMin, common->startWidth, common->endWidth),
+                    Lerp(uMax, common->startWidth, common->endWidth));
+                if (glm::max(glm::max(cp[0].y, cp[1].y), glm::max(cp[2].y, cp[3].y)) +
+                    0.5f * maxWidth < 0 ||
+                    glm::min(glm::min(cp[0].y, cp[1].y), glm::min(cp[2].y, cp[3].y)) -
+                    0.5f * maxWidth > 0) {
+                    t = -1.0f;
+                    continue;
+                }
+
+                if (glm::max(glm::max(cp[0].x, cp[1].x), glm::max(cp[2].x, cp[3].x)) +
+                    0.5f * maxWidth < 0 ||
+                    glm::min(glm::min(cp[0].x, cp[1].x), glm::min(cp[2].x, cp[3].x)) -
+                    0.5f * maxWidth > 0) {
+                    t = -1.0f;
+                    continue;
+                }
+                /*
+                float rayLength = glm::sqrt(glm::dot(ray.direction, ray.direction));
+                float zMax = rayLength * FLT_MAX;
+                if (glm::max(glm::max(cp[0].z, cp[1].z), glm::max(cp[2].z, cp[3].z)) +
+                    0.5f * maxWidth < 0 ||
+                    glm::min(glm::min(cp[0].z, cp[1].z), glm::min(cp[2].z, cp[3].z)) -
+                    0.5f * maxWidth > zMax) {
+                    t = -1.0f;
+                }
+
+                //     float L0 = 0;
+                //     for (int i = 0; i < 2; ++i)
+                //         L0 = std::max(
+                //         L0, std::max(
+                //         std::max(std::abs(cp[i].x - 2 * cp[i + 1].x + cp[i + 2].x),
+                //         std::abs(cp[i].y - 2 * cp[i + 1].y + cp[i + 2].y)),
+                //         std::abs(cp[i].z - 2 * cp[i + 1].z + cp[i + 2].z)));
+                // 
+                //     float eps =
+                //         std::max(common->startWidth, common->endWidth) * .05f;  // width / 20
+                //     auto Log2 = [](float v) -> int {
+                //         if (v < 1) return 0;
+                //         uint32_t bits = FloatToBits(v);
+                //         // https://graphics.stanford.edu/~seander/bithacks.html#IntegerLog
+                //         // (With an additional add so get round-to-nearest rather than
+                //         // round down.)
+                //         return (bits >> 23) - 127 + (bits & (1 << 22) ? 1 : 0);
+                //     };
+                // Compute log base 4 by dividing log2 in half.
+                int r0 = 0;//Log2(1.41421356237f * 6.f * L0 / (8.f * eps)) / 2;
+                int maxDepth = Clamp(r0, 0, 10);
+
+                //ReportValue(refinementLevel, maxDepth);
+
+
+                //recur
+                glm::mat4 rayToObj = glm::inverse(objToRay);
+                float u0 = uMin;
+                float u1 = uMax;
+                //return recursiveIntersect(ray, tHit, isect, cp, glm::inverse(objToRay), objToWorld, uMin, uMax, maxDepth);
+                float edge = (cp[1].y - cp[0].y) * -cp[0].y + cp[0].x * (cp[0].x - cp[1].x);
+                if (edge < 0) {
+                    t = -1.0f;
+                    continue;
+                }
+
+                edge = (cp[2].y - cp[3].y) * -cp[3].y + cp[3].x * (cp[3].x - cp[2].x);
+                if (edge < 0) {
+                    t = -1.0f;
+                    continue;
+                }
+
+                glm::vec2 segmentDirection = glm::vec2(cp[3] - cp[0]);
+                float denom = segmentDirection.x * segmentDirection.x + segmentDirection.y * segmentDirection.y;
+                if (denom == 0.0f) {
+                    t = -1.0f;
+                    continue;
+                }
+
+                float w = glm::dot(glm::vec2(cp[0]), segmentDirection) / denom;
+                float u = Clamp(Lerp(w, u0, u1), u0, u1);
+                float hitWidth = Lerp(u, common->startWidth, common->endWidth);
+
+                glm::vec3 nHit;
+
+                glm::vec3 dpcdw;
+                glm::vec3 pc = EvalBezier(cp, Clamp(w, 0, 1), &dpcdw);
+                float ptCurveDist2 = pc.x * pc.x + pc.y * pc.y;
+                if (ptCurveDist2 > hitWidth * hitWidth * .25) {
+                    t = -1.0f;
+                    continue;
+                }
+                zMax = rayLength * FLT_MAX;
+                if (pc.z < 0 || pc.z > zMax) {
+                    t = -1.0f;
+                    continue;
+                }
+
+                float ptCurveDist = std::sqrt(ptCurveDist2);
+                float edgeFunc = dpcdw.x * -pc.y + pc.x * dpcdw.y;
+                float v = (edgeFunc > 0) ? 0.5f + ptCurveDist / hitWidth
+                    : 0.5f - ptCurveDist / hitWidth;
+
+                if (t != 0.0) {
+                    t = pc.z / rayLength;
+
+                    glm::vec3 dpdu, dpdv;
+                    EvalBezier(common->controlPoint, u, &dpdu);
+
+
+                    // Compute curve $\dpdv$ for flat and cylinder curves
+                    glm::vec3 dpduPlane = multiplyMV(objToRay, glm::vec4(dpdu, 0.0f));
+
+                    glm::vec3 dpdvPlane =
+                        glm::normalize(glm::vec3(-dpduPlane.y, dpduPlane.x, 0)) * hitWidth;
+
+                    // Rotate _dpdvPlane_ to give cylindrical appearance
+                    float theta = Lerp(v, -90., 90.);
+                    glm::mat4 rot = glm::rotate(glm::mat4(), -theta, dpduPlane);
+                    dpdvPlane = multiplyMV(rot, glm::vec4(dpdvPlane, 0.0f));
+
+                    dpdv = multiplyMV(rayToObj, glm::vec4(dpdvPlane, 1.0f));
+
+                    
+                    glm::vec3 tnormal = glm::normalize(glm::cross(dpdu, dpdv));
+                    glm::vec3 intersectPoint = getPointOnRay(ray, pc.z);
+                    tmpNormal = multiplyMV(geom.invTranspose, glm::vec4(tnormal, 0.0f));
+                    tmpIntersectPoint = multiplyMV(geom.inverseTransform, glm::vec4(intersectPoint, 1.0f));
+                    
+                    
+                    //isect
+                    //这里主要是需要一个法向量， 看看法向是怎么是怎么算的。
+                    //normalize(cross(dpdu, dpdv))
+
+                }
+                */
+                /*
+#ifdef ENABLE_MESHWORLDBOUND
+                float tmp_t;
+                if (worldBounds[geoms[i].worldBoundIdx].Intersect(unit.ray, &tmp_t)) {
+                    if (curves[geom.curveId].Intersect(unit.ray, &t, &tmpIsect, geom.transform, geom.invTranspose)) {
+                        //就是拿到交点和normal
+                        tmpNormal = tmpIsect.surfaceNormal;
+                    }
+                } else {
+                    t = -1.0f;
+                }
+                
+#else
+                
+                if (curves[geom.curveId].Intersect(unit.ray, &t, &tmpIsect, geom.transform, geom.invTranspose)) {
+                    //就是拿到交点和normal
+                    tmpNormal = tmpIsect.surfaceNormal;
+                } else {
+                    t = -1.0f;
+                }
+                */
+
             }
             //TODO:  more geometry type
             
@@ -500,7 +704,8 @@ void pathTrace(uchar4* pbo, int frame, int iter) {
             dev_geometry,
             hst_scene->geometrys.size(),
             dev_intersection,
-            dev_tris
+            dev_tris,
+            dev_curves
 #ifdef ENABLE_MESHWORLDBOUND
             ,dev_worldBounds
 #endif

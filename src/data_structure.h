@@ -158,10 +158,10 @@ struct Curve {
         uMax = max;
         common = c;
     };
-    
+    __host__ __device__
         Bounds3f objBound() const;
     __host__ __device__
-        bool Intersect(const Ray& ray, float *tHit, ShadeableIntersection *isect, glm::mat4 worldToObj, glm::mat4 objToWorld);
+        bool Intersect(const Ray& ray, float *tHit, ShadeableIntersection *isect, glm::mat4 &worldToObj, glm::mat4 &objToWorld);
     __host__ __device__
         bool recursiveIntersect(const Ray &ray, float *tHit,
             ShadeableIntersection *isect, const glm::vec3 cp[4],

@@ -443,7 +443,7 @@ inline Bounds3f Expand(const Bounds3f &b, T delta) {
 
 
 
-
+__host__ __device__
 Bounds3f Curve::objBound() const {
     glm::vec3 cpObj[4];
     cpObj[0] = BlossomBezier(common->controlPoint, uMin, uMin, uMin);
@@ -474,7 +474,7 @@ void CoordinateSystem(const glm::vec3 &v1, glm::vec3 *v2,
 
 
 __host__ __device__
-bool Curve::Intersect(const Ray& r, float *tHit, ShadeableIntersection *isect, glm::mat4 worldToObj, glm::mat4 objToWorld) {
+bool Curve::Intersect(const Ray& r, float *tHit, ShadeableIntersection *isect, glm::mat4 &worldToObj, glm::mat4 &objToWorld) {
     //** 要不要实现transform类
     glm::vec3 oErr, dErr;
     Ray ray;
@@ -505,6 +505,7 @@ bool Curve::Intersect(const Ray& r, float *tHit, ShadeableIntersection *isect, g
         0.5f * maxWidth < 0 ||
         glm::min(glm::min(cp[0].y, cp[1].y), glm::min(cp[2].y, cp[3].y)) -
         0.5f * maxWidth > 0) {
+        *tHit = -1.0f;
         return false;
     }
 
@@ -512,6 +513,7 @@ bool Curve::Intersect(const Ray& r, float *tHit, ShadeableIntersection *isect, g
         0.5f * maxWidth < 0 ||
         glm::min(glm::min(cp[0].x, cp[1].x), glm::min(cp[2].x, cp[3].x)) -
         0.5f * maxWidth > 0) {
+        *tHit = -1.0f;
         return false;
     }
 
@@ -521,6 +523,7 @@ bool Curve::Intersect(const Ray& r, float *tHit, ShadeableIntersection *isect, g
         0.5f * maxWidth < 0 ||
         glm::min(glm::min(cp[0].z, cp[1].z), glm::min(cp[2].z, cp[3].z)) -
         0.5f * maxWidth > zMax) {
+        *tHit = -1.0f;
         return false;
     }
 
@@ -547,7 +550,90 @@ bool Curve::Intersect(const Ray& r, float *tHit, ShadeableIntersection *isect, g
     int maxDepth = Clamp(r0, 0, 10);
 
     //ReportValue(refinementLevel, maxDepth);
-    return recursiveIntersect(ray, tHit, isect, cp, glm::inverse(objToRay), objToWorld, uMin, uMax, maxDepth);
+
+    
+    //recur
+    glm::mat4 rayToObj = glm::inverse(objToRay);
+    float u0 = uMin;
+    float u1 = uMax;
+    //return recursiveIntersect(ray, tHit, isect, cp, glm::inverse(objToRay), objToWorld, uMin, uMax, maxDepth);
+    float edge = (cp[1].y - cp[0].y) * -cp[0].y + cp[0].x * (cp[0].x - cp[1].x);
+    if (edge < 0) {
+        *tHit = -1.0f;
+        return false;
+    }
+
+    edge = (cp[2].y - cp[3].y) * -cp[3].y + cp[3].x * (cp[3].x - cp[2].x);
+    if (edge < 0) {
+        *tHit = -1.0f;
+        return false;
+    }
+
+    glm::vec2 segmentDirection = glm::vec2(cp[3] - cp[0]);
+    float denom = segmentDirection.x * segmentDirection.x + segmentDirection.y * segmentDirection.y;
+    if (denom == 0.0f) {
+        *tHit = -1.0f;
+        return false;
+    }
+
+    float w = glm::dot(glm::vec2(cp[0]), segmentDirection) / denom;
+    float u = Clamp(Lerp(w, u0, u1), u0, u1);
+    float hitWidth = Lerp(u, common->startWidth, common->endWidth);
+
+    glm::vec3 nHit;
+
+    glm::vec3 dpcdw;
+    glm::vec3 pc = EvalBezier(cp, Clamp(w, 0, 1), &dpcdw);
+    float ptCurveDist2 = pc.x * pc.x + pc.y * pc.y;
+    if (ptCurveDist2 > hitWidth * hitWidth * .25) {
+        *tHit = -1.0f;
+        return false;
+    }
+    zMax = rayLength * FLT_MAX;
+    if (pc.z < 0 || pc.z > zMax) {
+        *tHit = -1.0f;
+        return false;
+    }
+
+    float ptCurveDist = std::sqrt(ptCurveDist2);
+    float edgeFunc = dpcdw.x * -pc.y + pc.x * dpcdw.y;
+    float v = (edgeFunc > 0) ? 0.5f + ptCurveDist / hitWidth
+        : 0.5f - ptCurveDist / hitWidth;
+
+    if (tHit != nullptr) {
+        *tHit = pc.z / rayLength;
+
+        glm::vec3 dpdu, dpdv;
+        EvalBezier(common->controlPoint, u, &dpdu);
+
+
+        // Compute curve $\dpdv$ for flat and cylinder curves
+        glm::vec3 dpduPlane = multiplyMV(objToRay, glm::vec4(dpdu, 0.0f));
+
+        glm::vec3 dpdvPlane =
+            glm::normalize(glm::vec3(-dpduPlane.y, dpduPlane.x, 0)) * hitWidth;
+
+        // Rotate _dpdvPlane_ to give cylindrical appearance
+        float theta = Lerp(v, -90., 90.);
+        glm::mat4 rot = glm::rotate(glm::mat4(), -theta, dpduPlane);
+        dpdvPlane = multiplyMV(rot, glm::vec4(dpdvPlane, 0.0f));
+
+        dpdv = multiplyMV(rayToObj, glm::vec4(dpdvPlane, 1.0f));
+
+        isect->t = *tHit;
+        glm::vec3 normal = glm::normalize(glm::cross(dpdu, dpdv));
+        glm::vec3 intersectPoint = getPointOnRay(ray, pc.z);
+        multiplyMV(objToWorld, glm::vec4(normal, 0.0f));
+        multiplyMV(objToWorld, glm::vec4(intersectPoint, 1.0f));
+        isect->surfaceNormal = normal;
+        isect->intersectPoint = intersectPoint;
+        //isect
+        //这里主要是需要一个法向量， 看看法向是怎么是怎么算的。
+        //normalize(cross(dpdu, dpdv))
+
+    }
+    return true;
+
 
 }
 
@@ -610,17 +696,20 @@ bool Curve::recursiveIntersect(const Ray &ray, float *tHit, ShadeableIntersectio
 //     } else {
         float edge = (cp[1].y - cp[0].y) * -cp[0].y + cp[0].x * (cp[0].x - cp[1].x);
         if (edge < 0) {
+            *tHit = -1.0f;
             return false;
         }
 
         edge = (cp[2].y - cp[3].y) * -cp[3].y + cp[3].x * (cp[3].x - cp[2].x);
         if (edge < 0) {
+            *tHit = -1.0f;
             return false;
         }
 
         glm::vec2 segmentDirection = glm::vec2(cp[3] - cp[0]);
         float denom = segmentDirection.x * segmentDirection.x + segmentDirection.y * segmentDirection.y;
         if (denom == 0.0f) {
+            *tHit = -1.0f;
             return false;
         }
 
@@ -634,10 +723,12 @@ bool Curve::recursiveIntersect(const Ray &ray, float *tHit, ShadeableIntersectio
         glm::vec3 pc = EvalBezier(cp, Clamp(w, 0, 1), &dpcdw);
         float ptCurveDist2 = pc.x * pc.x + pc.y * pc.y;
         if (ptCurveDist2 > hitWidth * hitWidth * .25) {
+            *tHit = -1.0f;
             return false;
         }
         float zMax = rayLength * FLT_MAX;
         if (pc.z < 0 || pc.z > zMax) {
+            *tHit = -1.0f;
             return false;
         }
 
